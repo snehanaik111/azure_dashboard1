@@ -1,6 +1,7 @@
 from flask import Flask, request,render_template, redirect,session,url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
+import logging
 
 
 app = Flask(__name__)
