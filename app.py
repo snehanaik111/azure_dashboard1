@@ -2,7 +2,7 @@ from flask import Flask, request,render_template, redirect,session,url_for, json
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import logging
-import json
+
 
 
 app = Flask(__name__)
@@ -274,8 +274,8 @@ api_logger.addHandler(api_handler)
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
-            sense_data_str = request.json['modbus_TEST']
-            sense_data = json.loads(sense_data_str)
+            sense_data = request.json['modbus_TEST']
+          
             api_logger.info("API called with data: %s", sense_data)
 
             if not sense_data:
@@ -289,10 +289,8 @@ def receive_level_sensor_data():
             imei = sense_data.get('IMEI', '')
 
           # Handling sensor_data with a comma
-            if isinstance(sensor_data, str) and ',' in sensor_data:
+            if ',' in sensor_data:
                 sensor_data = sensor_data.split(',')[0]
-            elif isinstance(sensor_data, list):
-                sensor_data = sensor_data[0]
 
 
             # Create a new LevelSensorData object and add it to the database
