@@ -256,28 +256,57 @@ def api_crud_entry(id):
         db.session.commit()
         return jsonify({"message": "Entry deleted successfully"}), 200
 
+logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
+
+
+# Configure a separate logger for API calls
+api_logger = logging.getLogger('api_logger')
+api_handler = logging.FileHandler('apilog.txt')
+api_handler.setLevel(logging.INFO)
+api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+api_logger.addHandler(api_handler)
+
 
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
-        sense_data = request.json
-# if therre is commma , mean sensor value (if() {val = split value by , and get first} )
+        try:
+            sense_data = request.json
+            api_logger.info("API called with data: %s", sense_data)
 
+            if not sense_data:
+                logging.error("No JSON data received")
+                return jsonify({'status': 'failure', 'message': 'No JSON data received'}), 400
 
-        # Extracting data from JSON
-        date = sense_data.get('D', '')
-        full_addr = sense_data.get('address', '')
-        sensor_data = sense_data.get('data', '')
-        imei = sense_data.get('IMEI', '')
+            # Extracting data from JSON
+            date = sense_data.get('D', '')
+            full_addr = sense_data.get('address', '')
+            sensor_data = sense_data.get('data', '')
+            imei = sense_data.get('IMEI', '')
 
-        # Create a new LevelSensorData object and add it to the database
-        new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
-        db.session.add(new_data)
-        db.session.commit()
+            # Handling sensor_data with a comma
+            if ',' in sensor_data:
+                sensor_data = sensor_data.split(',')[0]
 
-        # Return a response
-        response = {'status': 'success', 'message': 'Data received and stored successfully'}
-        return jsonify(response), 200
+            # Create a new LevelSensorData object and add it to the database
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
+            db.session.add(new_data)
+            db.session.commit()
+
+            # Log success
+            logging.info("Data stored successfully: %s", sense_data)
+
+            # Return a response
+            response = {'status': 'success', 'message': 'Data received and stored successfully'}
+            return jsonify(response), 200
+        
+        except Exception as e:
+            # Log failure
+            logging.error("Failed to store data: %s", e)
+            return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
+
+    logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
 
 if __name__ == '__main__':
