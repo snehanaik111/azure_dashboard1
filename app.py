@@ -273,7 +273,7 @@ api_logger.addHandler(api_handler)
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
-            sense_data = request.json
+            sense_data = request.json['modbus_TEST']
             api_logger.info("API called with data: %s", sense_data)
 
             if not sense_data:
