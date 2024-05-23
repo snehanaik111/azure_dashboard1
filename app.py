@@ -269,13 +269,20 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
-            sense_data = request.json['modbus_TEST']
-          
+            if not request.is_json:
+                api_logger.error("Request content type is not JSON")
+                return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
+            
+            sense_data = request.json.get('modbus_TEST', {})
+            
+            if not isinstance(sense_data, dict):
+                api_logger.error("Invalid JSON data format")
+                return jsonify({'status': 'failure', 'message': 'Invalid JSON data format'}), 400
+
             api_logger.info("API called with data: %s", sense_data)
 
             if not sense_data:
@@ -288,13 +295,12 @@ def receive_level_sensor_data():
             sensor_data = sense_data.get('data', '')
             imei = sense_data.get('IMEI', '')
 
-          # Handling sensor_data with a comma
-            if ',' in sensor_data:
+            # Handling sensor_data with a comma
+            if isinstance(sensor_data, str) and ',' in sensor_data:
                 sensor_data = sensor_data.split(',')[0]
 
-
             # Create a new LevelSensorData object and add it to the database
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=str(sensor_data), imei=imei)
             db.session.add(new_data)
             db.session.commit()
 
