@@ -2,7 +2,7 @@ from flask import Flask, request,render_template, redirect,session,url_for, json
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import logging
-
+import json
 
 
 app = Flask(__name__)
@@ -37,10 +37,10 @@ class Crud(db.Model):
 
 class LevelSensorData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(100))
-    full_addr = db.Column(db.String(100))
-    sensor_data = db.Column(db.String(100))
-    imei = db.Column(db.String(100))
+    date = db.Column(db.String(50))
+    full_addr = db.Column(db.Integer)
+    sensor_data = db.Column(db.Float)
+    imei = db.Column(db.String(50))
 
     def __repr__(self):
         return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}')>"
