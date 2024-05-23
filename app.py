@@ -277,7 +277,7 @@ def receive_level_sensor_data():
                 api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
             
-            sense_data = request.json.get('modbus_TEST', {})
+            sense_data = request.get_json()
             
             if not isinstance(sense_data, dict):
                 api_logger.error("Invalid JSON data format")
@@ -285,22 +285,18 @@ def receive_level_sensor_data():
 
             api_logger.info("API called with data: %s", sense_data)
 
-            if not sense_data:
-                logging.error("No JSON data received")
-                return jsonify({'status': 'failure', 'message': 'No JSON data received'}), 400
-
             # Extracting data from JSON
             date = sense_data.get('D', '')
-            full_addr = sense_data.get('address', '')
-            sensor_data = sense_data.get('data', '')
+            full_addr = sense_data.get('address', 0)
+            sensor_data = sense_data.get('data', 0.0)
             imei = sense_data.get('IMEI', '')
 
-            # Handling sensor_data with a comma
-            if isinstance(sensor_data, str) and ',' in sensor_data:
-                sensor_data = sensor_data.split(',')[0]
+            if not all([date, full_addr, sensor_data, imei]):
+                api_logger.error("Missing required data fields")
+                return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
             # Create a new LevelSensorData object and add it to the database
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=str(sensor_data), imei=imei)
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
             db.session.add(new_data)
             db.session.commit()
 
@@ -318,6 +314,7 @@ def receive_level_sensor_data():
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
