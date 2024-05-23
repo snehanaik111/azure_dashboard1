@@ -268,6 +268,8 @@ api_handler = logging.FileHandler('apilog.txt')
 api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
+
+
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -291,16 +293,19 @@ def receive_level_sensor_data():
             # Extracting data from JSON
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', 0.0)
+            sensor_data = sense_data.get('data', [])
             imei = sense_data.get('IMEI', '')
 
             if not all([date, full_addr, sensor_data, imei]):
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Handle sensor_data with a comma
-            if isinstance(sensor_data, str) and ',' in sensor_data:
-                sensor_data = sensor_data.split(',')[0]
+            # Ensure sensor_data is a list and extract the first element
+            if isinstance(sensor_data, list) and sensor_data:
+                sensor_data = sensor_data[0]
+            else:
+                api_logger.error("Invalid sensor data format")
+                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
             # Convert sensor_data to float
             try:
@@ -328,7 +333,6 @@ def receive_level_sensor_data():
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
-
 
 if __name__ == '__main__':
     app.run(debug=True)
