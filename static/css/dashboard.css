@@ -421,3 +421,35 @@ border-radius: 4px;
 	float: right;
    margin-right: 10px; /* Adjust as needed */
 }
+
+  #seachtab{
+	margin-left: 10px;
+	float: right;
+	margin-bottom: 10px;
+}
+
+#filtertab {
+	float: right;
+	margin-bottom: 20px;
+}
+#seachtab form, #filtertab form {
+	display: flex;
+}
+#seachtab input {
+	margin-right: 10px;
+}
+
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+}
+
+.pagination button {
+    margin: 0 5px;
+}
