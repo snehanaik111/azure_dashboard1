@@ -9,8 +9,6 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 app.secret_key = 'secret_key'
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crud.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
 
 
@@ -28,11 +26,7 @@ class User(db.Model):
     def check_password(self,password):
         return bcrypt.checkpw(password.encode('utf-8'),self.password.encode('utf-8'))
 
-class Crud(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    vehicle = db.Column(db.String(100), nullable=False)
-    type = db.Column(db.String(100), unique=True)
-    fuel_consumption = db.Column(db.String(100))
+
 
 
 class LevelSensorData(db.Model):
@@ -129,12 +123,11 @@ def api_login():
 def dashboard():
     if 'email' in session:
         user = User.query.filter_by(email=session['email']).first()
-        crud_entries = Crud.query.all()
-        labels = [entry.vehicle for entry in crud_entries]
-        data = [float(entry.fuel_consumption) for entry in crud_entries]
+     
+        
         sense_data = LevelSensorData.query.all()
 
-        return render_template('dashboard.html', user=user, crud_entries=crud_entries, labels=labels, data=data,sense_data=sense_data)
+        return render_template('dashboard.html', user=user,sense_data=sense_data)
    
 
 
@@ -163,100 +156,7 @@ def delete_user(user_id):
 
 
 
-#new crud table
 
-
-@app.route('/crud/create', methods=['POST'])
-def crud_create():
-    if request.method == 'POST':
-        vehicle = request.form['vehicle']
-        type = request.form['type']
-        fuel_consumption = request.form['fuel_consumption']
-
-        new_entry = Crud(vehicle=vehicle, type=type, fuel_consumption=fuel_consumption)
-        db.session.add(new_entry)
-        db.session.commit()
-    return redirect('/dashboard')
-    
-@app.route('/crud/update/<int:id>', methods=['POST'])
-def crud_update(id):
-    if request.method == 'POST':
-        entry = Crud.query.get_or_404(id)
-        entry.vehicle = request.form['update_vehicle']
-        entry.type = request.form['update_type']
-        entry.fuel_consumption = request.form['update_fuel_consumption']
-        db.session.commit()
-        return redirect('/dashboard')  # Redirect to dashboard after updating entry
-
-    return render_template('dashboard.html') 
-
-@app.route('/add_crud', methods=['POST'])
-def add_crud():
-    if request.method == 'POST':
-        vehicle = request.form['vehicle']
-        type = request.form['type']
-        fuel_consumption = request.form['fuel_consumption']
-
-        new_entry = Crud(vehicle=vehicle, type=type, fuel_consumption=fuel_consumption)
-        db.session.add(new_entry)
-        db.session.commit()
-        return redirect('/dashboard')  # Redirect to dashboard after adding entry
-
-    return render_template('dashboard.html') 
-
-@app.route('/crud/delete/<int:id>', methods=['POST'])
-def crud_delete(id):
-    if request.method == 'POST':
-        entry = Crud.query.get_or_404(id)
-        db.session.delete(entry)
-        db.session.commit()
-    return redirect('/dashboard')
-
-@app.route('/api/crud', methods=['GET'])
-def api_get_all_crud_entries():
-    entries = Crud.query.all()
-    entries_data = [{"id": entry.id, "vehicle": entry.vehicle, "type": entry.type, "fuel_consumption": entry.fuel_consumption} for entry in entries]
-    return jsonify(entries_data), 200
-
-@app.route('/api/crud/create', methods=['POST'])
-def api_create_crud_entry():
-    data = request.json
-    vehicle = data.get('vehicle')
-    type = data.get('type')
-    fuel_consumption = data.get('fuel_consumption')
-
-    # Check if all required fields are present
-    if not vehicle or not type or not fuel_consumption:
-        return jsonify({"message": "Please provide vehicle, type, and fuel_consumption"}), 400
-
-    try:
-        new_entry = Crud(vehicle=vehicle, type=type, fuel_consumption=fuel_consumption)
-        db.session.add(new_entry)
-        db.session.commit()
-        return jsonify({"message": "Entry created successfully"}), 201
-    except Exception as e:
-        return jsonify({"message": f"Error: {str(e)}"}), 500
-
-@app.route('/api/crud/<int:id>', methods=['GET', 'PUT', 'DELETE'])
-def api_crud_entry(id):
-    entry = Crud.query.get_or_404(id)
-
-    if request.method == 'GET':
-        entry_data = {"id": entry.id, "vehicle": entry.vehicle, "type": entry.type, "fuel_consumption": entry.fuel_consumption}
-        return jsonify(entry_data), 200
-
-    elif request.method == 'PUT':
-        data = request.json
-        entry.vehicle = data['vehicle']
-        entry.type = data['type']
-        entry.fuel_consumption = data['fuel_consumption']
-        db.session.commit()
-        return jsonify({"message": "Entry updated successfully"}), 200
-
-    elif request.method == 'DELETE':
-        db.session.delete(entry)
-        db.session.commit()
-        return jsonify({"message": "Entry deleted successfully"}), 200
 
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
