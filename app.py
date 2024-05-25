@@ -1,4 +1,5 @@
-from flask import Flask, request,render_template, redirect,session,url_for, jsonify
+
+from flask import Flask, request,render_template, redirect,session,url_for,jsonify
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import logging
@@ -10,7 +11,10 @@ from sqlalchemy import desc
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS']=False
 app.secret_key = 'secret_key'
+
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
 
 
@@ -28,25 +32,27 @@ class User(db.Model):
     def check_password(self,password):
         return bcrypt.checkpw(password.encode('utf-8'),self.password.encode('utf-8'))
 
-
+class Crud(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    vehicle = db.Column(db.String(100), nullable=False)
+    type = db.Column(db.String(100), unique=True)
+    fuel_consumption = db.Column(db.Float) 
 
 
 class LevelSensorData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.String(50))
-    full_addr = db.Column(db.Integer)
-    sensor_data = db.Column(db.Float)
-    imei = db.Column(db.String(50))
+    date = db.Column(db.String(100))
+    full_addr = db.Column(db.String(100))
+    sensor_data = db.Column(db.String(100))
+    imei = db.Column(db.String(100))
 
     def __repr__(self):
         return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}')>"
 
 
-
-
 with app.app_context():
     db.create_all()
-
+   
 
 @app.route('/')
 def index():
@@ -68,6 +74,7 @@ def signup():
 
 
     return render_template('signup.html')
+
 
 @app.route('/api/signup', methods=['POST'])
 def api_signup():
@@ -123,6 +130,8 @@ def api_login():
 
 
 
+
+
 @app.route('/dashboard', defaults={'page': 1})
 @app.route('/dashboard/page/<int:page>')
 def dashboard(page):
@@ -160,6 +169,7 @@ def logout():
     session.pop('email',None)
     return redirect('/login')
 
+#new crud table
 @app.route('/api/logout', methods=['POST'])
 def api_logout():
     session.pop('email', None)
@@ -176,9 +186,11 @@ def delete_user(user_id):
         return jsonify({"message": "User not found"}), 404
 
 
+#crus removed
 
 
 
+    
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 
@@ -190,50 +202,37 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
-            if not request.is_json:
-                api_logger.error("Request content type is not JSON")
-                return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
+            # Get the JSON data string from the request
+            sense_data_str = request.json.get('modbus_TEST', '')
 
-            request_data = request.get_json()
+            if not sense_data_str:
+                logging.error("No JSON data received")
+                return jsonify({'status': 'failure', 'message': 'No JSON data received'}), 400
 
-            # Ensure modbus_TEST field is present and parse its value as JSON
-            modbus_test_data = request_data.get('modbus_TEST', '{}')
-            try:
-                sense_data = json.loads(modbus_test_data)
-            except json.JSONDecodeError:
-                api_logger.error("Invalid JSON format in modbus_TEST")
-                return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
+            if isinstance(sense_data_str, dict):
+                # If the data is already a dictionary, use it directly
+                sense_data = sense_data_str
+            else:
+                # Parse the JSON data string
+                sense_data = json.loads(sense_data_str)
 
             api_logger.info("API called with data: %s", sense_data)
 
             # Extracting data from JSON
             date = sense_data.get('D', '')
-            full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', [])
+            full_addr = sense_data.get('address', '')
+            sensor_data = sense_data.get('data', '')
             imei = sense_data.get('IMEI', '')
 
-            if not all([date, full_addr, sensor_data, imei]):
-                api_logger.error("Missing required data fields")
-                return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
-
-            # Ensure sensor_data is a list and extract the first element
-            if isinstance(sensor_data, list) and sensor_data:
+            # Handling sensor_data with a comma
+            if isinstance(sensor_data, str) and ',' in sensor_data:
+                sensor_data = sensor_data.split(',')[0]
+            elif isinstance(sensor_data, list):
                 sensor_data = sensor_data[0]
-            else:
-                api_logger.error("Invalid sensor data format")
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
-
-            # Convert sensor_data to float
-            try:
-                sensor_data = float(sensor_data)
-            except ValueError:
-                api_logger.error("Invalid sensor data format")
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
             # Create a new LevelSensorData object and add it to the database
             new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
@@ -246,7 +245,7 @@ def receive_level_sensor_data():
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
             return jsonify(response), 200
-
+        
         except Exception as e:
             # Log failure
             logging.error("Failed to store data: %s", e)
@@ -254,9 +253,10 @@ def receive_level_sensor_data():
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
-    
+
 
 # api for count dashboard blobs 
+
 
 @app.route('/api/sensor_data_count', methods=['GET'])
 def get_sensor_data_count():
@@ -276,9 +276,9 @@ def get_imei_count():
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 
+#adding pages
 
-
-    #search for table 
+#search for table 
 @app.route('/search_sensor_data', methods=['GET'])
 def search_sensor_data():
     search_query = request.args.get('query')
@@ -302,5 +302,9 @@ def search_sensor_data():
         })
     return jsonify(results_list)
 
+
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
