@@ -213,21 +213,36 @@ def receive_level_sensor_data():
                 api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
 
-            request_data = request.json
+            request_data = request.get_json()
 
-            # Ensure modbus_TEST field is present
-            modbus_test_data = request_data.get('modbus_TEST', {})
-            date = modbus_test_data.get('D', '')
-            full_addr = modbus_test_data.get('address', 0)
-            sensor_data = modbus_test_data.get('data')
-            imei = modbus_test_data.get('IMEI', '')
+            # Ensure modbus_TEST field is present and parse its value as JSON
+            modbus_test_data = request_data.get('modbus_TEST', '{}')
+            try:
+                sense_data = json.loads(modbus_test_data)
+            except json.JSONDecodeError:
+                api_logger.error("Invalid JSON format in modbus_TEST")
+                return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
 
-            # Check if all required fields are present
+            api_logger.info("API called with data: %s", sense_data)
+
+            # Extracting data from JSON
+            date = sense_data.get('D', '')
+            full_addr = sense_data.get('address', 0)
+            sensor_data = sense_data.get('data', [])
+            imei = sense_data.get('IMEI', '')
+
             if not all([date, full_addr, sensor_data, imei]):
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Attempt to convert sensor_data to float
+            # Ensure sensor_data is a list and extract the first element
+            if isinstance(sensor_data, list) and sensor_data:
+                sensor_data = sensor_data[0]
+            else:
+                api_logger.error("Invalid sensor data format")
+                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
+
+            # Convert sensor_data to float
             try:
                 sensor_data = float(sensor_data)
             except ValueError:
@@ -240,7 +255,7 @@ def receive_level_sensor_data():
             db.session.commit()
 
             # Log success
-            logging.info("Data stored successfully: %s", request_data)
+            logging.info("Data stored successfully: %s", json.dumps(sense_data))
 
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
@@ -253,7 +268,6 @@ def receive_level_sensor_data():
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
-
 
 
 
