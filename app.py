@@ -130,8 +130,7 @@ def api_login():
 
 
 
-
-
+# Update the /dashboard route to query data for the dashboard
 @app.route('/dashboard', defaults={'page': 1})
 @app.route('/dashboard/page/<int:page>')
 def dashboard(page):
@@ -154,13 +153,14 @@ def dashboard(page):
         total_pages = level_sensor_query.pages
         sense_data = level_sensor_query.items
 
-       
+        # Count the number of sensor data entries and distinct IMEIs
         sensor_data_count = LevelSensorData.query.count()
         imei_count = db.session.query(LevelSensorData.imei).distinct().count()
 
-        return render_template('dashboard.html', user=user,sense_data=sense_data, sensor_data_count=sensor_data_count, imei_count=imei_count,
+        return render_template('dashboard.html', user=user, sense_data=sense_data, sensor_data_count=sensor_data_count, imei_count=imei_count,
                                page=page, total_pages=total_pages)
     return redirect('/login')
+
 
 
 
@@ -202,15 +202,24 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
+# Update the /level_sensor_data route to store data in the database
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
             # Get the JSON data string from the request
-            sense_data_str = request.data.decode('utf-8')
-            
-            # Parse the JSON data string
-            sense_data = json.loads(sense_data_str)
+            sense_data_str = request.json.get('modbus_TEST', '')
+
+            if not sense_data_str:
+                logging.error("No JSON data received")
+                return jsonify({'status': 'failure', 'message': 'No JSON data received'}), 400
+
+            if isinstance(sense_data_str, dict):
+                # If the data is already a dictionary, use it directly
+                sense_data = sense_data_str
+            else:
+                # Parse the JSON data string
+                sense_data = json.loads(sense_data_str)
 
             api_logger.info("API called with data: %s", sense_data)
 
@@ -238,18 +247,39 @@ def receive_level_sensor_data():
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
             return jsonify(response), 200
         
-        except json.JSONDecodeError as e:
-            # Log JSON parsing failure
-            logging.error("JSON parsing error: %s", e)
-            return jsonify({'status': 'failure', 'message': 'JSON parsing error: ' + str(e)}), 400
-        
         except Exception as e:
-            # Log other exceptions
+            # Log failure
             logging.error("Failed to store data: %s", e)
-            return jsonify({'status': 'failure', 'message': 'Failed to store data: ' + str(e)}), 500
+            return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
+
+
+# Update the search_sensor_data route to search for data in the database
+@app.route('/search_sensor_data', methods=['GET'])
+def search_sensor_data():
+    search_query = request.args.get('query')
+    search_results = LevelSensorData.query.filter(
+        db.or_(
+            LevelSensorData.id.like(f'%{search_query}%'),
+            LevelSensorData.date.like(f'%{search_query}%'),
+            LevelSensorData.full_addr.like(f'%{search_query}%'),
+            LevelSensorData.sensor_data.like(f'%{search_query}%'),
+            LevelSensorData.imei.like(f'%{search_query}%')
+        )
+    ).all()
+    results_list = []
+    for entry in search_results:
+        results_list.append({
+            'id': entry.id,
+            'date': entry.date,
+            'full_addr': entry.full_addr,
+            'sensor_data': entry.sensor_data,
+            'imei': entry.imei
+        })
+    return jsonify(results_list)
 
 
 
