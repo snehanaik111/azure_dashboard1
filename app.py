@@ -36,7 +36,7 @@ class Crud(db.Model):
 
 
 class LevelSensorData(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     date = db.Column(db.String(50))
     full_addr = db.Column(db.Integer)
     sensor_data = db.Column(db.Float)
@@ -125,6 +125,7 @@ def api_login():
         return jsonify({"message": "Login successful"}), 200
     return jsonify({"message": "Invalid credentials"}), 401
 
+
 @app.route('/dashboard')
 def dashboard():
     if 'email' in session:
@@ -132,13 +133,38 @@ def dashboard():
         crud_entries = Crud.query.all()
         labels = [entry.vehicle for entry in crud_entries]
         data = [float(entry.fuel_consumption) for entry in crud_entries]
-        sense_data = LevelSensorData.query.all()
 
-        return render_template('dashboard.html', user=user, crud_entries=crud_entries, labels=labels, data=data,sense_data=sense_data)
-   
+        filter_option = request.args.get('filter', 'latest')
+        page = request.args.get('page', 1, type=int)
 
+        # Check if there is a search query parameter
+        search_query = request.args.get('query')
+        if search_query:
+            sense_data_pagination = LevelSensorData.query.filter(
+                (LevelSensorData.date.like(f'%{search_query}%')) |
+                (LevelSensorData.full_addr.like(f'%{search_query}%')) |
+                (LevelSensorData.sensor_data.like(f'%{search_query}%')) |
+                (LevelSensorData.imei.like(f'%{search_query}%'))
+            ).order_by(LevelSensorData.date.desc()).paginate(page=page, per_page=10)
+        else:
+            if filter_option == 'oldest':
+                sense_data_pagination = LevelSensorData.query.order_by(LevelSensorData.date.asc()).paginate(page=page, per_page=10)
+            else:
+                sense_data_pagination = LevelSensorData.query.order_by(LevelSensorData.date.desc()).paginate(page=page, per_page=10)
 
-        
+        sense_data = sense_data_pagination.items
+
+        return render_template(
+            'dashboard.html',
+            user=user,
+            crud_entries=crud_entries,
+            labels=labels,
+            data=data,
+            sense_data=sense_data,
+            filter_option=filter_option,
+            pagination=sense_data_pagination
+        )
+
     return redirect('/login')
 
 @app.route('/logout')
@@ -163,100 +189,7 @@ def delete_user(user_id):
 
 
 
-#new crud table
 
-
-@app.route('/crud/create', methods=['POST'])
-def crud_create():
-    if request.method == 'POST':
-        vehicle = request.form['vehicle']
-        type = request.form['type']
-        fuel_consumption = request.form['fuel_consumption']
-
-        new_entry = Crud(vehicle=vehicle, type=type, fuel_consumption=fuel_consumption)
-        db.session.add(new_entry)
-        db.session.commit()
-    return redirect('/dashboard')
-    
-@app.route('/crud/update/<int:id>', methods=['POST'])
-def crud_update(id):
-    if request.method == 'POST':
-        entry = Crud.query.get_or_404(id)
-        entry.vehicle = request.form['update_vehicle']
-        entry.type = request.form['update_type']
-        entry.fuel_consumption = request.form['update_fuel_consumption']
-        db.session.commit()
-        return redirect('/dashboard')  # Redirect to dashboard after updating entry
-
-    return render_template('dashboard.html') 
-
-@app.route('/add_crud', methods=['POST'])
-def add_crud():
-    if request.method == 'POST':
-        vehicle = request.form['vehicle']
-        type = request.form['type']
-        fuel_consumption = request.form['fuel_consumption']
-
-        new_entry = Crud(vehicle=vehicle, type=type, fuel_consumption=fuel_consumption)
-        db.session.add(new_entry)
-        db.session.commit()
-        return redirect('/dashboard')  # Redirect to dashboard after adding entry
-
-    return render_template('dashboard.html') 
-
-@app.route('/crud/delete/<int:id>', methods=['POST'])
-def crud_delete(id):
-    if request.method == 'POST':
-        entry = Crud.query.get_or_404(id)
-        db.session.delete(entry)
-        db.session.commit()
-    return redirect('/dashboard')
-
-@app.route('/api/crud', methods=['GET'])
-def api_get_all_crud_entries():
-    entries = Crud.query.all()
-    entries_data = [{"id": entry.id, "vehicle": entry.vehicle, "type": entry.type, "fuel_consumption": entry.fuel_consumption} for entry in entries]
-    return jsonify(entries_data), 200
-
-@app.route('/api/crud/create', methods=['POST'])
-def api_create_crud_entry():
-    data = request.json
-    vehicle = data.get('vehicle')
-    type = data.get('type')
-    fuel_consumption = data.get('fuel_consumption')
-
-    # Check if all required fields are present
-    if not vehicle or not type or not fuel_consumption:
-        return jsonify({"message": "Please provide vehicle, type, and fuel_consumption"}), 400
-
-    try:
-        new_entry = Crud(vehicle=vehicle, type=type, fuel_consumption=fuel_consumption)
-        db.session.add(new_entry)
-        db.session.commit()
-        return jsonify({"message": "Entry created successfully"}), 201
-    except Exception as e:
-        return jsonify({"message": f"Error: {str(e)}"}), 500
-
-@app.route('/api/crud/<int:id>', methods=['GET', 'PUT', 'DELETE'])
-def api_crud_entry(id):
-    entry = Crud.query.get_or_404(id)
-
-    if request.method == 'GET':
-        entry_data = {"id": entry.id, "vehicle": entry.vehicle, "type": entry.type, "fuel_consumption": entry.fuel_consumption}
-        return jsonify(entry_data), 200
-
-    elif request.method == 'PUT':
-        data = request.json
-        entry.vehicle = data['vehicle']
-        entry.type = data['type']
-        entry.fuel_consumption = data['fuel_consumption']
-        db.session.commit()
-        return jsonify({"message": "Entry updated successfully"}), 200
-
-    elif request.method == 'DELETE':
-        db.session.delete(entry)
-        db.session.commit()
-        return jsonify({"message": "Entry deleted successfully"}), 200
 
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
@@ -269,6 +202,9 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
+
+
+
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -277,36 +213,21 @@ def receive_level_sensor_data():
                 api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
 
-            request_data = request.get_json()
+            request_data = request.json
 
-            # Ensure modbus_TEST field is present and parse its value as JSON
-            modbus_test_data = request_data.get('modbus_TEST', '{}')
-            try:
-                sense_data = json.loads(modbus_test_data)
-            except json.JSONDecodeError:
-                api_logger.error("Invalid JSON format in modbus_TEST")
-                return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
+            # Ensure modbus_TEST field is present
+            modbus_test_data = request_data.get('modbus_TEST', {})
+            date = modbus_test_data.get('D', '')
+            full_addr = modbus_test_data.get('address', 0)
+            sensor_data = modbus_test_data.get('data')
+            imei = modbus_test_data.get('IMEI', '')
 
-            api_logger.info("API called with data: %s", sense_data)
-
-            # Extracting data from JSON
-            date = sense_data.get('D', '')
-            full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', [])
-            imei = sense_data.get('IMEI', '')
-
+            # Check if all required fields are present
             if not all([date, full_addr, sensor_data, imei]):
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Ensure sensor_data is a list and extract the first element
-            if isinstance(sensor_data, list) and sensor_data:
-                sensor_data = sensor_data[0]
-            else:
-                api_logger.error("Invalid sensor data format")
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
-
-            # Convert sensor_data to float
+            # Attempt to convert sensor_data to float
             try:
                 sensor_data = float(sensor_data)
             except ValueError:
@@ -319,7 +240,7 @@ def receive_level_sensor_data():
             db.session.commit()
 
             # Log success
-            logging.info("Data stored successfully: %s", json.dumps(sense_data))
+            logging.info("Data stored successfully: %s", request_data)
 
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
@@ -333,6 +254,53 @@ def receive_level_sensor_data():
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
 
+
+
+
+
+
+# API route to get the count of device entries logged
+@app.route('/api/device_entries_logged', methods=['GET'])
+def api_device_entries_logged():
+    if 'email' in session:
+        # Count the number of entries in the LevelSensorData table
+        count = LevelSensorData.query.count()
+        return jsonify({"device_entries_logged": count}), 200
+    return jsonify({"message": "Unauthorized"}), 401
+
+# API route to get the count of active devices
+@app.route('/api/no_of_devices_active', methods=['GET'])
+def api_no_of_devices_active():
+    if 'email' in session:
+        # Count the number of distinct IMEI values in the LevelSensorData table
+        active_devices = db.session.query(db.func.count(db.distinct(LevelSensorData.imei))).scalar()
+        return jsonify({"no_of_devices_active": active_devices}), 200
+    return jsonify({"message": "Unauthorized"}), 401
+
+
+@app.route('/search', methods=['GET'])
+def search_sensor_data():
+    query = request.args.get('query')
+    page = request.args.get('page', 1, type=int)  # Get the page number from the request
+
+    if query:
+        sense_data_pagination = LevelSensorData.query.filter(
+            (LevelSensorData.date.like(f'%{query}%')) |
+            (LevelSensorData.full_addr.like(f'%{query}%')) |
+            (LevelSensorData.sensor_data.like(f'%{query}%')) |
+            (LevelSensorData.imei.like(f'%{query}%'))
+        ).paginate(page=page, per_page=10)
+        sense_data = sense_data_pagination.items  # Extract items from pagination object
+    else:
+        sense_data_pagination = LevelSensorData.query.paginate(page=page, per_page=10)
+        sense_data = sense_data_pagination.items  # Extract items from pagination object
+    
+    user = User.query.filter_by(email=session.get('email')).first()  # Use get to avoid KeyError
+    crud_entries = Crud.query.all()
+    labels = [entry.vehicle for entry in crud_entries]
+    data = [float(entry.fuel_consumption) for entry in crud_entries]
+
+    return render_template('dashboard.html', user=user, crud_entries=crud_entries, labels=labels, data=data, sense_data=sense_data, pagination=sense_data_pagination)
 
 if __name__ == '__main__':
     app.run(debug=True)
