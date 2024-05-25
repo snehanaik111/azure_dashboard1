@@ -10,16 +10,17 @@ box-sizing: border-box;
 font-family: "Poppins", sans-serif; 
 } 
 :root { 
---background-color1: #fafaff; 
---background-color2: #ffffff; 
---background-color3: #ededed; 
---background-color4: #cad7fda4; 
---primary-color: #e7e7ed; 
---secondary-color: #1f0cce; 
---Border-color: #d7d5da; 
---one-use-color: #231ca8; 
---two-use-color: #5500cb; 
-} 
+	--background-color1: #f5f7fa;   /* Slightly darker off-white */
+	--background-color2: #ffffff;   /* White */
+	--background-color3: #e2e6ea;   /* Light grey */
+	--background-color4: #c3dafd;   /* Soft light blue */
+	--primary-color: #d1d7e0;       /* Light blue-grey */
+	--secondary-color: #071059;     /* Darker blue for better contrast */
+	--Border-color: #c4c4c4;        /* Mid-tone grey */
+	--one-use-color: #0f1c66;       /* Medium dark blue */
+	--two-use-color: #0f1c66;       /* Slightly different blue for variation */
+  } 
+
 body { 
 background-color: var(--background-color4); 
 max-width: 100%; 
@@ -306,9 +307,9 @@ border-bottom: 2px solid rgba(0, 20, 151, 0.59);
 } 
 
 .recent-Articles { 
-font-size: 30px; 
+font-size: 26px; 
 font-weight: 600; 
-color: #5500cb; 
+color: #0f1c66; 
 } 
 
 .view { 
@@ -376,3 +377,47 @@ border-radius: 4px;
   .tr:nth-child(even) {
 	background-color: #dddddd;
   }
+
+  #searchInput {
+	float: right;
+	margin-right: 7px;
+	margin-bottom: 1px;
+}
+
+ #searchbtn{
+	float:right;
+
+ }
+  #searchContainer {
+	float: right;
+	margin-top: 10px;
+	margin-right: 10px;
+}
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+}
+
+.pagination button {
+    margin: 0 5px;
+}
+
+
+.search-filter-container {
+	float: right;
+    display: flex;
+    align-items: center;
+}
+
+.search-filter-container button,
+.search-filter-container input {
+
+	float: right;
+   margin-right: 10px; /* Adjust as needed */
+}
