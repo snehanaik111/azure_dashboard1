@@ -246,72 +246,7 @@
     </table>
   </div>
           
-        <button id="showFormBtn" class="btn btn-primary mb-3">Add New Entry</button>
-        <form action="/add_crud" method="POST">
-            <div class="form-group" >
-              <label for="vehicle">Vehicle:</label>
-              <input type="text" class="form-control" id="vehicle" name="vehicle" required>
-            </div>
-            <div class="form-group">
-              <label for="type">Type:</label>
-              <input type="text" class="form-control" id="type" name="type" required>
-            </div>
-            <div class="form-group">
-              <label for="fuel_consumption">Fuel Consumption:</label>
-              <input type="text" class="form-control" id="fuel_consumption" name="fuel_consumption" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Add Entry</button>
-          </form>
-        <!-- Table to display CRUD entries -->
-        <div class="table-responsive">
-          <table class="table table-bordered">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Vehicle</th>
-                <th>Type</th>
-                <th>Fuel Consumption</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for entry in crud_entries %}
-              <tr>
-                <td>{{ entry.id }}</td>
-                <td>{{ entry.vehicle }}</td>
-                <td>{{ entry.type }}</td>
-                <td>{{ entry.fuel_consumption }}</td>
-                <td>
-                    <button class="btn btn-primary btn-sm update-btn" data-entry-id="{{ entry.id }}">Update</button>
-
-        <!-- Update form (hidden by default) -->
         
-        <form action="/crud/update/{{ entry.id }}" method="POST" class="update-form hidden">
-            <div class="form-group">
-                <label for="update_vehicle">Vehicle:</label>
-                <input type="text" class="form-control" id="update_vehicle" name="update_vehicle" value="{{ entry.vehicle }}" required>
-            </div>
-            <div class="form-group">
-                <label for="update_type">Type:</label>
-                <input type="text" class="form-control" id="update_type" name="update_type" value="{{ entry.type }}" required>
-            </div>
-            <div class="form-group">
-                <label for="update_fuel_consumption">Fuel Consumption:</label>
-                <input type="text" class="form-control" id="update_fuel_consumption" name="update_fuel_consumption" value="{{ entry.fuel_consumption }}" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Update Entry</button>
-        </form>
-        <!-- Delete form -->
-        <form action="/crud/delete/{{ entry.id }}" method="POST" style="display:inline;">
-            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
-                  <!-- Add update button if needed -->
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
 
             
 
