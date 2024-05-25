@@ -135,28 +135,25 @@
 
           <div class="box-container"> 
 
-              <div class="box box1"> 
-                  <div class="text"> 
-                      <h2 class="topic-heading">50+</h2> 
-                      <h2 class="topic">Devices Connected</h2> 
-                  </div> 
-
-                  <img src= "/static/imgs/sensor.png"
-
-                      alt="Views"> 
+            <div class="box box1"> 
+              <div class="text"> 
+                  <h2 class="topic-heading" id="devices_logged">{{ devices_logged }}</h2> 
+                  <h2 class="topic">Device Entries Logged</h2> 
               </div> 
-
-              <div class="box box2"> 
-                  <div class="text"> 
-                      <h2 class="topic-heading">5000L </h2> 
-                      <h2 class="topic">Total Fuel Tracked</h2> 
-                      
-                  </div> 
-
-                  <img src= "/static/imgs/fuel.png"
-
-                       alt="likes"> 
+          
+              <img src="/static/imgs/sensor.png" alt="Views"> 
+          </div> 
+          
+          <div class="box box2"> 
+              <div class="text"> 
+                  <h2 class="topic-heading" id="active_devices">{{ active_devices }}</h2> 
+                  <h2 class="topic">Active Devices</h2> 
               </div> 
+          
+              <img src="/static/imgs/car.png" alt="likes"> 
+          </div>
+          
+         
 
               <div class="box box3"> 
                   <div class="text"> 
@@ -180,7 +177,19 @@
               </div> 
           </div> 
 
-
+ <!-- Include jQuery -->
+ <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+ <script>
+     // Fetch and update the count of device entries logged
+     $.get("/api/device_entries_logged", function(data) {
+         $("#devices_logged").text(data.device_entries_logged);
+     });
+ 
+     // Fetch and update the count of active devices
+     $.get("/api/no_of_devices_active", function(data) {
+         $("#active_devices").text(data.no_of_devices_active);
+     });
+ </script>
           
 
           <div class="report-container"> 
@@ -220,8 +229,34 @@
     });
   </script> 
             
+            <br>
 <h2>Sensor Data Receiver</h2>
+
+ 
+
 <div class="table-responsive">
+ <div id="seachtab">
+    <form action="{{ url_for('search_sensor_data') }}" method="GET">
+        <input type="text" name="query" placeholder="Search sensor data...">
+        <button type="submit">Search</button>
+    </form>
+</div>
+
+
+<div id="filtertab" class="dropdown">
+    <button class="btn btn-secondary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        Filter
+    </button>
+    <div class="dropdown-menu" aria-labelledby="filterDropdown">
+        <a class="dropdown-item" href="{{ url_for('dashboard', filter='latest') }}">Latest Entries</a>
+        <a class="dropdown-item" href="{{ url_for('dashboard', filter='oldest') }}">Oldest Entries</a>
+    </div>
+</div>
+{% if filter_option == 'latest' %}
+<p>Displaying the latest entries</p>
+{% elif filter_option == 'oldest' %}
+<p>Displaying the oldest entries</p>
+{% endif %}
     <table class="table table-bordered">
       <thead>
         <tr>
@@ -242,8 +277,22 @@
           <td>{{ entry.imei }}</td>
         </tr>
         {% endfor %}
+        
       </tbody>
     </table>
+      <!--Pages-->
+       <!-- Pagination -->
+       <div class="pagination-container">
+        <div class="pagination">
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('search_sensor_data', query=request.args.get('query'), page=pagination.prev_num) }}"><button type="button">Previous</button></a>
+            {% endif %}
+            Page {{ pagination.page }} of {{ pagination.pages }}
+            {% if pagination.has_next %}
+            <a href="{{ url_for('search_sensor_data', query=request.args.get('query'), page=pagination.next_num) }}"><button type="button">Next</button></a>
+            {% endif %}
+        </div>
+    </div>
   </div>
           
                 
@@ -333,10 +382,6 @@
           </div> 
       </div> 
   </div> 
-
-
-  
-
 
 
 
