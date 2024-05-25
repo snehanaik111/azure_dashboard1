@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import logging
 import json
+from sqlalchemy import or_
+from sqlalchemy import desc
 
 
 app = Flask(__name__)
@@ -119,20 +121,39 @@ def api_login():
         return jsonify({"message": "Login successful"}), 200
     return jsonify({"message": "Invalid credentials"}), 401
 
-@app.route('/dashboard')
-def dashboard():
+
+
+@app.route('/dashboard', defaults={'page': 1})
+@app.route('/dashboard/page/<int:page>')
+def dashboard(page):
     if 'email' in session:
         user = User.query.filter_by(email=session['email']).first()
-     
+
+        # Check if filter is provided in the request
+        filter_by = request.args.get('filter')
         
-        sense_data = LevelSensorData.query.all()
-
-        return render_template('dashboard.html', user=user,sense_data=sense_data)
-   
-
-
+        # Set default ordering if no filter is provided
+        order_by = LevelSensorData.id.desc()  # Default ordering by ID descending
         
+        # Update ordering based on filter value
+        if filter_by == 'asc':
+            order_by = LevelSensorData.id.asc()  # Ascending order by ID
+        
+        per_page = 10  # Number of entries per page
+        level_sensor_query = LevelSensorData.query.order_by(order_by).paginate(page, per_page, False)
+
+        total_pages = level_sensor_query.pages
+        sense_data = level_sensor_query.items
+
+       
+        sensor_data_count = LevelSensorData.query.count()
+        imei_count = db.session.query(LevelSensorData.imei).distinct().count()
+
+        return render_template('dashboard.html', user=user,sense_data=sense_data, sensor_data_count=sensor_data_count, imei_count=imei_count,
+                               page=page, total_pages=total_pages)
     return redirect('/login')
+
+
 
 @app.route('/logout')
 def logout():
@@ -233,6 +254,53 @@ def receive_level_sensor_data():
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+    
+
+# api for count dashboard blobs 
+
+@app.route('/api/sensor_data_count', methods=['GET'])
+def get_sensor_data_count():
+    try:
+        count = LevelSensorData.query.count()
+        return jsonify({"sensor_data_count": count}), 200
+    except Exception as e:
+        return jsonify({"message": f"Error: {str(e)}"}), 500
+
+
+@app.route('/api/imei_count', methods=['GET'])
+def get_imei_count():
+    try:
+        imei_count = db.session.query(LevelSensorData.imei).distinct().count()
+        return jsonify({"imei_count": imei_count}), 200
+    except Exception as e:
+        return jsonify({"message": f"Error: {str(e)}"}), 500
+
+
+
+
+    #search for table 
+@app.route('/search_sensor_data', methods=['GET'])
+def search_sensor_data():
+    search_query = request.args.get('query')
+    search_results = LevelSensorData.query.filter(
+        db.or_(
+            LevelSensorData.id.like(f'%{search_query}%'),
+            LevelSensorData.date.like(f'%{search_query}%'),
+            LevelSensorData.full_addr.like(f'%{search_query}%'),
+            LevelSensorData.sensor_data.like(f'%{search_query}%'),
+            LevelSensorData.imei.like(f'%{search_query}%')
+        )
+    ).all()
+    results_list = []
+    for entry in search_results:
+        results_list.append({
+            'id': entry.id,
+            'date': entry.date,
+            'full_addr': entry.full_addr,
+            'sensor_data': entry.sensor_data,
+            'imei': entry.imei
+        })
+    return jsonify(results_list)
 
 if __name__ == '__main__':
     app.run(debug=True)
