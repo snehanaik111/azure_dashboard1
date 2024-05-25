@@ -207,18 +207,10 @@ def receive_level_sensor_data():
     if request.method == 'POST':
         try:
             # Get the JSON data string from the request
-            sense_data_str = request.json.get('modbus_TEST', '')
-
-            if not sense_data_str:
-                logging.error("No JSON data received")
-                return jsonify({'status': 'failure', 'message': 'No JSON data received'}), 400
-
-            if isinstance(sense_data_str, dict):
-                # If the data is already a dictionary, use it directly
-                sense_data = sense_data_str
-            else:
-                # Parse the JSON data string
-                sense_data = json.loads(sense_data_str)
+            sense_data_str = request.data.decode('utf-8')
+            
+            # Parse the JSON data string
+            sense_data = json.loads(sense_data_str)
 
             api_logger.info("API called with data: %s", sense_data)
 
@@ -246,13 +238,19 @@ def receive_level_sensor_data():
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
             return jsonify(response), 200
         
+        except json.JSONDecodeError as e:
+            # Log JSON parsing failure
+            logging.error("JSON parsing error: %s", e)
+            return jsonify({'status': 'failure', 'message': 'JSON parsing error: ' + str(e)}), 400
+        
         except Exception as e:
-            # Log failure
+            # Log other exceptions
             logging.error("Failed to store data: %s", e)
-            return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
+            return jsonify({'status': 'failure', 'message': 'Failed to store data: ' + str(e)}), 500
 
     logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
 
 
 # api for count dashboard blobs 
