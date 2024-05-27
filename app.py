@@ -293,7 +293,6 @@ api_logger.addHandler(api_handler)
 
 
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -304,7 +303,6 @@ def receive_level_sensor_data():
 
             request_data = request.get_json()
 
-            # Ensure modbus_TEST field is present and parse its value as JSON
             modbus_test_data = request_data.get('modbus_TEST', '{}')
             try:
                 sense_data = json.loads(modbus_test_data)
@@ -314,7 +312,6 @@ def receive_level_sensor_data():
 
             api_logger.info("API called with data: %s", sense_data)
 
-            # Extracting data from JSON
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
             sensor_data = sense_data.get('data', [])
@@ -324,35 +321,29 @@ def receive_level_sensor_data():
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Ensure sensor_data is a list and extract the first element
             if isinstance(sensor_data, list) and sensor_data:
                 sensor_data = sensor_data[0]
             else:
                 api_logger.error("Invalid sensor data format")
                 return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
-            # Convert sensor_data to float
             try:
                 sensor_data = float(sensor_data)
             except ValueError:
                 api_logger.error("Invalid sensor data format")
                 return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
-            # Create a new LevelSensorData object and add it to the database
             volume_liters = get_volume(sensor_data)
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei,volume_liters=volume_liters)
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
             db.session.add(new_data)
             db.session.commit()
 
-            # Log success
             logging.info("Data stored successfully: %s", json.dumps(sense_data))
 
-            # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
             return jsonify(response), 200
 
         except Exception as e:
-            # Log failure
             logging.error("Failed to store data: %s", e)
             return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
