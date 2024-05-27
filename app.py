@@ -136,23 +136,37 @@ def dashboard():
 
         filter_option = request.args.get('filter', 'latest')
         page = request.args.get('page', 1, type=int)
+        per_page = 10
+        offset = (page - 1) * per_page
 
-        # Check if there is a search query parameter
         search_query = request.args.get('query')
         if search_query:
-            sense_data_pagination = LevelSensorData.query.filter(
-                (LevelSensorData.date.like(f'%{search_query}%')) |
-                (LevelSensorData.full_addr.like(f'%{search_query}%')) |
-                (LevelSensorData.sensor_data.like(f'%{search_query}%')) |
-                (LevelSensorData.imei.like(f'%{search_query}%'))
-            ).order_by(LevelSensorData.date.desc()).paginate(page=page, per_page=10)
+            sense_data_query = f"""
+                SELECT * FROM derived_level_sensor_data
+                WHERE date LIKE '%{search_query}%'
+                OR full_addr LIKE '%{search_query}%'
+                OR sensor_data LIKE '%{search_query}%'
+                OR imei LIKE '%{search_query}%'
+                ORDER BY date DESC
+                LIMIT {per_page} OFFSET {offset}
+            """
         else:
             if filter_option == 'oldest':
-                sense_data_pagination = LevelSensorData.query.order_by(LevelSensorData.date.asc()).paginate(page=page, per_page=10)
+                sense_data_query = f"""
+                    SELECT * FROM derived_level_sensor_data
+                    ORDER BY date ASC
+                    LIMIT {per_page} OFFSET {offset}
+                """
             else:
-                sense_data_pagination = LevelSensorData.query.order_by(LevelSensorData.date.desc()).paginate(page=page, per_page=10)
+                sense_data_query = f"""
+                    SELECT * FROM derived_level_sensor_data
+                    ORDER BY date DESC
+                    LIMIT {per_page} OFFSET {offset}
+                """
 
-        sense_data = sense_data_pagination.items
+        sense_data_pagination = db.session.execute(sense_data_query).fetchall()
+        total_entries = db.session.execute("SELECT COUNT(*) FROM derived_level_sensor_data").scalar()
+        total_pages = (total_entries + per_page - 1) // per_page
 
         return render_template(
             'dashboard.html',
@@ -160,12 +174,14 @@ def dashboard():
             crud_entries=crud_entries,
             labels=labels,
             data=data,
-            sense_data=sense_data,
+            sense_data=sense_data_pagination,
             filter_option=filter_option,
-            pagination=sense_data_pagination
+            current_page=page,
+            total_pages=total_pages
         )
 
     return redirect('/login')
+
 
 @app.route('/logout')
 def logout():
@@ -315,6 +331,71 @@ def search_sensor_data():
     data = [float(entry.fuel_consumption) for entry in crud_entries]
 
     return render_template('dashboard.html', user=user, crud_entries=crud_entries, labels=labels, data=data, sense_data=sense_data, pagination=sense_data_pagination)
+
+
+#creating volume column
+
+def create_derived_table():
+    with db.engine.connect() as connection:
+        connection.execute("""
+            CREATE VIEW IF NOT EXISTS derived_level_sensor_data AS
+            SELECT
+                id,
+                date,
+                sensor_data,
+                full_addr,
+                imei,
+                CASE
+                    WHEN sensor_data = 240 THEN 8.875
+                    WHEN sensor_data = 234 THEN 8.625
+                    WHEN sensor_data = 228 THEN 8.375
+                    WHEN sensor_data = 222 THEN 8.125
+                    WHEN sensor_data = 215 THEN 7.875
+                    WHEN sensor_data = 209 THEN 7.625
+                    WHEN sensor_data = 203 THEN 7.375
+                    WHEN sensor_data = 196 THEN 7.125
+                    WHEN sensor_data = 190 THEN 6.875
+                    WHEN sensor_data = 183 THEN 6.625
+                    WHEN sensor_data = 177 THEN 6.375
+                    WHEN sensor_data = 170 THEN 6.125
+                    WHEN sensor_data = 164 THEN 5.875
+                    WHEN sensor_data = 158 THEN 5.625
+                    WHEN sensor_data = 151 THEN 5.375
+                    WHEN sensor_data = 144 THEN 5.125
+                    WHEN sensor_data = 138 THEN 4.875
+                    WHEN sensor_data = 131 THEN 4.625
+                    WHEN sensor_data = 125 THEN 4.375
+                    WHEN sensor_data = 118 THEN 4.125
+                    WHEN sensor_data = 111 THEN 3.875
+                    WHEN sensor_data = 105 THEN 3.625
+                    WHEN sensor_data = 98 THEN 3.375
+                    WHEN sensor_data = 91 THEN 3.125
+                    WHEN sensor_data = 85 THEN 2.875
+                    WHEN sensor_data = 78 THEN 2.625
+                    WHEN sensor_data = 73 THEN 2.446
+                    WHEN sensor_data = 71 THEN 2.375
+                    WHEN sensor_data = 64 THEN 2.125
+                    WHEN sensor_data = 57 THEN 1.875
+                    WHEN sensor_data = 50 THEN 1.625
+                    WHEN sensor_data = 42 THEN 1.375
+                    WHEN sensor_data = 35 THEN 1.125
+                    WHEN sensor_data = 28 THEN 0.875
+                    WHEN sensor_data = 21 THEN 0.625
+                    WHEN sensor_data = 14 THEN 0.375
+                    WHEN sensor_data = 6 THEN 0.125
+                    WHEN sensor_data = 0 THEN 0
+                    ELSE 0 -- Default value for unspecified sensor_data
+                END AS volume_in_liters
+            FROM
+                level_sensor_data
+        """)
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
