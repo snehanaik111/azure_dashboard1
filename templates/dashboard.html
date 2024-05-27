@@ -260,21 +260,23 @@
     <table class="table table-bordered">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Date</th>
-          <th>Address</th>
-          <th>Sensor Data</th>
-          <th>IMEI</th>
+         <th>ID</th>
+                <th>Date</th>
+                <th>Sensor Data</th>
+                <th>Volume (Liters)</th>
+                <th>Full Address</th>
+                <th>IMEI</th>
         </tr>
       </thead>
       <tbody>
         {% for entry in sense_data %}
         <tr>
           <td>{{ entry.id }}</td>
-          <td>{{ entry.date }}</td>
-          <td>{{ entry.full_addr }}</td>
-          <td>{{ entry.sensor_data }}</td>
-          <td>{{ entry.imei }}</td>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.sensor_data }}</td>
+                <td>{{ entry.volume_in_liters }}</td>
+                <td>{{ entry.full_addr }}</td>
+                <td>{{ entry.imei }}</td>
         </tr>
         {% endfor %}
         
