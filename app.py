@@ -6,102 +6,61 @@ import json
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 app.secret_key = 'secret_key'
 
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
 
 
+# Define conversion table
+conversion_table = {
+    240: 8.875,
+    234: 8.625,
+    228: 8.375,
+    222: 8.125,
+    215: 7.875,
+    209: 7.625,
+    203: 7.375,
+    197: 7.125,
+    196: 7.125,
+    190: 6.875,
+    183: 6.625,
+    177: 6.375,
+    170: 6.125,
+    164: 5.875,
+    158: 5.625,
+    151: 5.375,
+    152: 5.375,
+    144: 5.125,
+    138: 4.875,
+    131: 4.625,
+    125: 4.375,
+    118: 4.125,
+    111: 3.875,
+    105: 3.625,
+    98: 3.375,
+    91: 3.125,
+    85: 2.875,
+    78: 2.625,
+    71: 2.375,
+    70: 2.225,
+    64: 2.125,
+    57: 1.875,
+    50: 1.625,
+    51: 1.625,
+    42:1.375,
+    35:1.125,
+    28:0.875,
+    21:0.625,
+    19:0.696,
+    14:0.375,
+    6:0.125,
+    0:0,
+    "Sensor Dead Band": 0,
+}
 
 
-import sqlite3
-
-# Connect to the SQLite database
-conn = sqlite3.connect('level_sensor_data.db')
-cursor = conn.cursor()
-
-# Create the conversion table
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS conversion_table (
-    sensor_data INTEGER PRIMARY KEY,
-    volume_liters REAL
-)
-''')
-
-# Insert sample data into the conversion table
-conversion_data = [
-    (240, 8.875),
-    (234, 8.625),
-    (228, 8.375),
-    (222, 8.125),
-    (215, 7.875),
-    (209, 7.625),
-    (203, 7.375),
-    (197, 7.125),
-    (196, 7.125),
-    (190, 6.875),
-    (183, 6.625),
-    (177, 6.375),
-    (170, 6.125),
-    (164, 5.875),
-    (158, 5.625),
-    (151, 5.375),
-    (152, 5.375),
-    (144, 5.125),
-    (138, 4.875),
-    (131, 4.625),
-    (125, 4.375),
-    (118, 4.125),
-    (111, 3.875),
-    (105, 3.625),
-    (98, 3.375),
-    (91, 3.125),
-    (85, 2.875),
-    (78, 2.625),
-    (71, 2.375),
-    (70, 2.225),
-    (64, 2.125),
-    (57, 1.875),
-    (50, 1.625),
-    (51, 1.625),
-    (42, 1.375),
-    (35, 1.125),
-    (28, 0.875),
-    (21, 0.625),
-    (19, 0.696),
-    (14, 0.375),
-    (6, 0.125),
-    (0, 0)
-]
-
-cursor.executemany('''
-INSERT OR IGNORE INTO conversion_table (sensor_data, volume_liters)
-VALUES (?, ?)
-''', conversion_data)
-
-# Commit and close the connection
-conn.commit()
-conn.close()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class ConversionTable(db.Model):
-    sensor_data = db.Column(db.Integer, primary_key=True)
-    volume_liters = db.Column(db.Float)
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -293,6 +252,7 @@ api_logger.addHandler(api_handler)
 
 
 
+
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -303,6 +263,7 @@ def receive_level_sensor_data():
 
             request_data = request.get_json()
 
+            # Ensure modbus_TEST field is present and parse its value as JSON
             modbus_test_data = request_data.get('modbus_TEST', '{}')
             try:
                 sense_data = json.loads(modbus_test_data)
@@ -312,6 +273,7 @@ def receive_level_sensor_data():
 
             api_logger.info("API called with data: %s", sense_data)
 
+            # Extracting data from JSON
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
             sensor_data = sense_data.get('data', [])
@@ -321,29 +283,34 @@ def receive_level_sensor_data():
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
+            # Ensure sensor_data is a list and extract the first element
             if isinstance(sensor_data, list) and sensor_data:
                 sensor_data = sensor_data[0]
             else:
                 api_logger.error("Invalid sensor data format")
                 return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
+            # Convert sensor_data to float
             try:
                 sensor_data = float(sensor_data)
             except ValueError:
                 api_logger.error("Invalid sensor data format")
                 return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
-            volume_liters = get_volume(sensor_data)
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
+            # Create a new LevelSensorData object and add it to the database
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
             db.session.add(new_data)
             db.session.commit()
 
+            # Log success
             logging.info("Data stored successfully: %s", json.dumps(sense_data))
 
+            # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
             return jsonify(response), 200
 
         except Exception as e:
+            # Log failure
             logging.error("Failed to store data: %s", e)
             return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
@@ -391,33 +358,31 @@ def search_sensor_data():
         sense_data = sense_data_pagination.items  # Extract items from pagination object
     
     user = User.query.filter_by(email=session.get('email')).first()  # Use get to avoid KeyError
- # Apply conversion logic to calculate volumes in liters for each data point
-    for data_point in sense_data:
-        data_point.volume_liters = get_volume(data_point.sensor_data)
+ 
 
-    return render_template('dashboard.html', user=user, sense_data=sense_data, pagination=sense_data_pagination)
-
+    return render_template('dashboard.html', user=user,sense_data=sense_data, pagination=sense_data_pagination)
 
 
 # Fetch the volume from the conversion table
 def get_volume(sensor_data):
-    conversion_entry = ConversionTable.query.filter_by(sensor_data=int(sensor_data)).first()
-    if conversion_entry:
-        return conversion_entry.volume_liters
+    # If the sensor data is an exact match in the conversion table, return the corresponding volume
+    if sensor_data in conversion_table:
+        return conversion_table[sensor_data]
     else:
-        numeric_keys = [entry.sensor_data for entry in ConversionTable.query.all()]
+        # Find the nearest lower and upper sensor data values in the conversion table
+        numeric_keys = [key for key in conversion_table if isinstance(key, int)]  # Filter out non-integer keys
         lower_key = max(key for key in numeric_keys if key < sensor_data)
-
+        
+        # Check if there are valid keys greater than the sensor data value
         upper_keys = [key for key in numeric_keys if key > sensor_data]
         if upper_keys:
             upper_key = min(upper_keys)
-            lower_volume = ConversionTable.query.filter_by(sensor_data=lower_key).first().volume_liters
-            upper_volume = ConversionTable.query.filter_by(sensor_data=upper_key).first().volume_liters
-            interpolated_volume = interpolate(lower_key, lower_volume, upper_key, upper_volume, sensor_data)
+            # Interpolate the volume based on the nearest lower and upper sensor data values
+            interpolated_volume = interpolate(lower_key, conversion_table[lower_key], upper_key, conversion_table[upper_key], sensor_data)
             return interpolated_volume
         else:
-            return None
-
+            return None 
+        
 def interpolate(x1, y1, x2, y2, x):
     interpolated_value = y1 + ((y2 - y1) / (x2 - x1)) * (x - x1)
     return round(interpolated_value, 3)
