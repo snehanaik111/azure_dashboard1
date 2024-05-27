@@ -28,11 +28,6 @@ class User(db.Model):
     def check_password(self,password):
         return bcrypt.checkpw(password.encode('utf-8'),self.password.encode('utf-8'))
 
-class Crud(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    vehicle = db.Column(db.String(100), nullable=False)
-    type = db.Column(db.String(100), unique=True)
-    fuel_consumption = db.Column(db.String(100))
 
 
 class LevelSensorData(db.Model):
@@ -44,6 +39,15 @@ class LevelSensorData(db.Model):
 
     def __repr__(self):
         return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}')>"
+
+#lookup table
+class LookupTable(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    sensor_data = db.Column(db.Integer)  # Change the column type to Integer
+    volume_liters = db.Column(db.Float)
+
+    def __repr__(self):
+        return f"<LookupTable(sensor_data={self.sensor_data}, volume_liters={self.volume_liters})>"
 
 
 
@@ -154,6 +158,15 @@ def dashboard():
 
         sense_data = sense_data_pagination.items
 
+        # Create a dictionary to store volume in liters for each sensor data value
+        volume_liters = {}
+        for entry in sense_data:
+            sensor_data = entry.sensor_data
+            # Query the lookup table to get the volume in liters for the current sensor data value
+            lookup_entry = LookupTable.query.filter_by(sensor_data=sensor_data).first()
+            if lookup_entry:
+                volume_liters[sensor_data] = lookup_entry.volume_liters
+
         return render_template(
             'dashboard.html',
             user=user,
@@ -161,6 +174,7 @@ def dashboard():
             labels=labels,
             data=data,
             sense_data=sense_data,
+            volume_liters=volume_liters,  # Pass volume_liters to the template
             filter_option=filter_option,
             pagination=sense_data_pagination
         )
@@ -315,6 +329,59 @@ def search_sensor_data():
     data = [float(entry.fuel_consumption) for entry in crud_entries]
 
     return render_template('dashboard.html', user=user, crud_entries=crud_entries, labels=labels, data=data, sense_data=sense_data, pagination=sense_data_pagination)
+
+
+# for lookup 
+conversion_factors = {
+    240: 8.875,
+    234: 8.625,
+    228: 8.375,
+    222: 8.125,
+    215: 7.875,
+    209: 7.625,
+    203: 7.375,
+    196: 7.125,
+    190: 6.875,
+    183: 6.625,
+    177: 6.375,
+    170: 6.125,
+    164: 5.875,
+    158: 5.625,
+    151: 5.375,
+    144: 5.125,
+    138: 4.875,
+    131: 4.625,
+    125: 4.375,
+    118: 4.125,
+    111: 3.875,
+    105: 3.625,
+    98: 3.375,
+    91: 3.125,
+    85: 2.875,
+    78: 2.625,
+    73: 2.446,
+    71: 2.375,
+    64: 2.125,
+    57: 1.875,
+    50: 1.625,
+    42: 1.375,
+    35: 1.125,
+    28: 0.875,
+    21: 0.625,
+    19: 0.553,
+    14: 0.375,
+    6: 0.125,
+    0: 0
+}
+
+@app.route('/create_lookup_table')
+def create_lookup_table():
+    for sensor_data, volume_liters in conversion_factors.items():
+        new_lookup_entry = LookupTable(sensor_data=sensor_data, volume_liters=volume_liters)
+        db.session.add(new_lookup_entry)
+    db.session.commit()
+    return "Lookup table created successfully!"
+
 
 if __name__ == '__main__':
     app.run(debug=True)
