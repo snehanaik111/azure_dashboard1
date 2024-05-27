@@ -1,4 +1,3 @@
-
 from flask import Flask, request,render_template, redirect,session,url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
@@ -11,8 +10,56 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 app.secret_key = 'secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crud.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
+
+
+# Define conversion table
+conversion_table = {
+    240: 8.875,
+    234: 8.625,
+    228: 8.375,
+    222: 8.125,
+    215: 7.875,
+    209: 7.625,
+    203: 7.375,
+    197: 7.125,
+    196: 7.125,
+    190: 6.875,
+    183: 6.625,
+    177: 6.375,
+    170: 6.125,
+    164: 5.875,
+    158: 5.625,
+    151: 5.375,
+    152: 5.375,
+    144: 5.125,
+    138: 4.875,
+    131: 4.625,
+    125: 4.375,
+    118: 4.125,
+    111: 3.875,
+    105: 3.625,
+    98: 3.375,
+    91: 3.125,
+    85: 2.875,
+    78: 2.625,
+    71: 2.375,
+    70: 2.225,
+    64: 2.125,
+    57: 1.875,
+    50: 1.625,
+    51: 1.625,
+    42:1.375,
+    35:1.125,
+    28:0.875,
+    21:0.625,
+    19:0.696,
+    14:0.375,
+    6:0.125,
+    0:0,
+    "Sensor Dead Band": 0,
+}
+
 
 
 class User(db.Model):
@@ -29,11 +76,7 @@ class User(db.Model):
     def check_password(self,password):
         return bcrypt.checkpw(password.encode('utf-8'),self.password.encode('utf-8'))
 
-class Crud(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    vehicle = db.Column(db.String(100), nullable=False)
-    type = db.Column(db.String(100), unique=True)
-    fuel_consumption = db.Column(db.String(100))
+
 
 
 class LevelSensorData(db.Model):
@@ -42,6 +85,7 @@ class LevelSensorData(db.Model):
     full_addr = db.Column(db.Integer)
     sensor_data = db.Column(db.Float)
     imei = db.Column(db.String(50))
+    volume_liters = db.Column(db.Float)  # New column for converted volumes
 
     def __repr__(self):
         return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}')>"
@@ -131,9 +175,8 @@ def api_login():
 def dashboard():
     if 'email' in session:
         user = User.query.filter_by(email=session['email']).first()
-        crud_entries = Crud.query.all()
-        labels = [entry.vehicle for entry in crud_entries]
-        data = [float(entry.fuel_consumption) for entry in crud_entries]
+       
+      
 
         filter_option = request.args.get('filter', 'latest')
         page = request.args.get('page', 1, type=int)
@@ -155,18 +198,22 @@ def dashboard():
 
         sense_data = sense_data_pagination.items
 
+        # Apply conversion logic to calculate volumes in liters for each data point
+        for data_point in sense_data:
+            data_point.volume_liters = get_volume(data_point.sensor_data)
+
         return render_template(
             'dashboard.html',
             user=user,
-            crud_entries=crud_entries,
-            labels=labels,
-            data=data,
+           
             sense_data=sense_data,
             filter_option=filter_option,
-            pagination=sense_data_pagination
+            pagination=sense_data_pagination,
+           
         )
 
     return redirect('/login')
+
 
 @app.route('/logout')
 def logout():
@@ -311,11 +358,41 @@ def search_sensor_data():
         sense_data = sense_data_pagination.items  # Extract items from pagination object
     
     user = User.query.filter_by(email=session.get('email')).first()  # Use get to avoid KeyError
-    crud_entries = Crud.query.all()
-    labels = [entry.vehicle for entry in crud_entries]
-    data = [float(entry.fuel_consumption) for entry in crud_entries]
+ 
 
-    return render_template('dashboard.html', user=user, crud_entries=crud_entries, labels=labels, data=data, sense_data=sense_data, pagination=sense_data_pagination)
+    return render_template('dashboard.html', user=user,sense_data=sense_data, pagination=sense_data_pagination)
+
+
+# Fetch the volume from the conversion table
+def get_volume(sensor_data):
+    # If the sensor data is an exact match in the conversion table, return the corresponding volume
+    if sensor_data in conversion_table:
+        return conversion_table[sensor_data]
+    else:
+        # Find the nearest lower and upper sensor data values in the conversion table
+        numeric_keys = [key for key in conversion_table if isinstance(key, int)]  # Filter out non-integer keys
+        lower_key = max(key for key in numeric_keys if key < sensor_data)
+        
+        # Check if there are valid keys greater than the sensor data value
+        upper_keys = [key for key in numeric_keys if key > sensor_data]
+        if upper_keys:
+            upper_key = min(upper_keys)
+            # Interpolate the volume based on the nearest lower and upper sensor data values
+            interpolated_volume = interpolate(lower_key, conversion_table[lower_key], upper_key, conversion_table[upper_key], sensor_data)
+            return interpolated_volume
+        else:
+            return None 
+        
+def interpolate(x1, y1, x2, y2, x):
+    interpolated_value = y1 + ((y2 - y1) / (x2 - x1)) * (x - x1)
+    return round(interpolated_value, 3)
+
+
+#chart
+
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
