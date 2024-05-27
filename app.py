@@ -10,14 +10,14 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 app.secret_key = 'secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
+
 
 
 
 import sqlite3
 
 # Connect to the SQLite database
-conn = sqlite3.connect('level_sensor_data.db')
+conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 
 # Create the conversion table
