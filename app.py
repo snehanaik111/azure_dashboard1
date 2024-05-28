@@ -293,7 +293,6 @@ api_logger.addHandler(api_handler)
 
 
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -340,12 +339,16 @@ def receive_level_sensor_data():
 
             # Create a new LevelSensorData object and add it to the database
             volume_liters = get_volume(sensor_data)
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei,volume_liters=volume_liters)
+            if volume_liters is None:
+                api_logger.error("Volume calculation failed")
+                return jsonify({'status': 'failure', 'message': 'Volume calculation failed'}), 500
+
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
             db.session.add(new_data)
             db.session.commit()
 
             # Log success
-            logging.info("Data stored successfully: %s", json.dumps(sense_data))
+            api_logger.info("Data stored successfully: %s", json.dumps(sense_data))
 
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
@@ -353,12 +356,11 @@ def receive_level_sensor_data():
 
         except Exception as e:
             # Log failure
-            logging.error("Failed to store data: %s", e)
+            api_logger.error("Failed to store data: %s", e)
             return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
-    logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
+    api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
-
 
 
 
@@ -415,7 +417,14 @@ def get_volume(sensor_data):
         return conversion_entry.volume_liters
     else:
         numeric_keys = [entry.sensor_data for entry in ConversionTable.query.all()]
-        lower_key = max(key for key in numeric_keys if key < sensor_data)
+        if not numeric_keys:
+            return None  # Return None or a default value if numeric_keys is empty
+
+        lower_keys = [key for key in numeric_keys if key < sensor_data]
+        if not lower_keys:
+            return None  # Return None or a default value if no lower keys
+
+        lower_key = max(lower_keys)
 
         upper_keys = [key for key in numeric_keys if key > sensor_data]
         if upper_keys:
@@ -425,7 +434,8 @@ def get_volume(sensor_data):
             interpolated_volume = interpolate(lower_key, lower_volume, upper_key, upper_volume, sensor_data)
             return interpolated_volume
         else:
-            return None
+            return None  # Return None or a default value if no upper keys
+
 
 def interpolate(x1, y1, x2, y2, x):
     interpolated_value = y1 + ((y2 - y1) / (x2 - x1)) * (x - x1)
