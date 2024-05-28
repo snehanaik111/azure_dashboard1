@@ -10,7 +10,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 app.secret_key = 'secret_key'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///level_sensor_data.db'
 
 
 # Define conversion table
@@ -175,14 +174,10 @@ def api_login():
 def dashboard():
     if 'email' in session:
         user = User.query.filter_by(email=session['email']).first()
-       
-      
-
         filter_option = request.args.get('filter', 'latest')
         page = request.args.get('page', 1, type=int)
-
-        # Check if there is a search query parameter
         search_query = request.args.get('query')
+
         if search_query:
             sense_data_pagination = LevelSensorData.query.filter(
                 (LevelSensorData.date.like(f'%{search_query}%')) |
@@ -197,21 +192,16 @@ def dashboard():
                 sense_data_pagination = LevelSensorData.query.order_by(LevelSensorData.date.desc()).paginate(page=page, per_page=10)
 
         sense_data = sense_data_pagination.items
-
-        # Apply conversion logic to calculate volumes in liters for each data point
         for data_point in sense_data:
             data_point.volume_liters = get_volume(data_point.sensor_data)
 
         return render_template(
             'dashboard.html',
             user=user,
-           
             sense_data=sense_data,
             filter_option=filter_option,
             pagination=sense_data_pagination,
-           
         )
-
     return redirect('/login')
 
 
@@ -365,27 +355,20 @@ def search_sensor_data():
 
 # Fetch the volume from the conversion table
 def get_volume(sensor_data):
-    # If the sensor data is an exact match in the conversion table, return the corresponding volume
     if sensor_data in conversion_table:
         return conversion_table[sensor_data]
     else:
-        # Find the nearest lower and upper sensor data values in the conversion table
-        numeric_keys = [key for key in conversion_table if isinstance(key, int)]  # Filter out non-integer keys
+        numeric_keys = [key for key in conversion_table if isinstance(key, int)]
         lower_key = max(key for key in numeric_keys if key < sensor_data)
-        
-        # Check if there are valid keys greater than the sensor data value
         upper_keys = [key for key in numeric_keys if key > sensor_data]
         if upper_keys:
             upper_key = min(upper_keys)
-            # Interpolate the volume based on the nearest lower and upper sensor data values
-            interpolated_volume = interpolate(lower_key, conversion_table[lower_key], upper_key, conversion_table[upper_key], sensor_data)
-            return interpolated_volume
-        else:
-            return None 
+            return interpolate(lower_key, conversion_table[lower_key], upper_key, conversion_table[upper_key], sensor_data)
+        return None
+
         
 def interpolate(x1, y1, x2, y2, x):
-    interpolated_value = y1 + ((y2 - y1) / (x2 - x1)) * (x - x1)
-    return round(interpolated_value, 3)
+    return round(y1 + ((y2 - y1) / (x2 - x1)) * (x - x1), 3)
 
 
 #chart
