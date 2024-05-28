@@ -291,6 +291,8 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
+
+
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -301,26 +303,13 @@ def receive_level_sensor_data():
 
             request_data = request.get_json()
 
-            # Log the raw modbus_TEST data for debugging
-            modbus_test_data = request_data.get('modbus_TEST', '{}')
-            api_logger.debug(f"Raw modbus_TEST data: {modbus_test_data}")
-
-            # Ensure modbus_TEST field is present and parse its value as JSON
-            try:
-                # Attempt to fix common JSON formatting issues
-                modbus_test_data = modbus_test_data.replace("'", "\"")
-                sense_data = json.loads(modbus_test_data)
-            except json.JSONDecodeError as e:
-                api_logger.error(f"Invalid JSON format in modbus_TEST: {e}")
-                return jsonify({'status': 'failure', 'message': f'Invalid JSON format in modbus_TEST: {e}'}), 400
-
-            api_logger.info("API called with data: %s", sense_data)
+            api_logger.info("API called with data: %s", request_data)
 
             # Extracting data from JSON
-            date = sense_data.get('D', '')
-            full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', [])
-            imei = sense_data.get('IMEI', '')
+            date = request_data.get('D', '')
+            full_addr = request_data.get('address', 0)
+            sensor_data = request_data.get('data', [])
+            imei = request_data.get('IMEI', '')
 
             if not all([date, full_addr, sensor_data, imei]):
                 api_logger.error("Missing required data fields")
@@ -351,7 +340,7 @@ def receive_level_sensor_data():
             db.session.commit()
 
             # Log success
-            api_logger.info("Data stored successfully: %s", json.dumps(sense_data))
+            api_logger.info("Data stored successfully: %s", json.dumps(request_data))
 
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
@@ -439,10 +428,11 @@ def get_volume(sensor_data):
             # No lower key found, return None
             return None
 
-
 def interpolate(x1, y1, x2, y2, x):
     interpolated_value = y1 + ((y2 - y1) / (x2 - x1)) * (x - x1)
     return round(interpolated_value, 3)
+
+
 
 #chart
 
