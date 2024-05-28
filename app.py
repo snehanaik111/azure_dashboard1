@@ -297,19 +297,28 @@ api_logger.addHandler(api_handler)
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
-            if not request.is_json:
-                api_logger.error("Request content type is not JSON")
-                return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
-
             request_data = request.get_json()
+            
+            # Extracting nested JSON from 'modbus_TEST'
+            modbus_test_data = request_data.get('modbus_TEST')
+            if not modbus_test_data:
+                api_logger.error("No data found in 'modbus_TEST'")
+                return jsonify({'status': 'failure', 'message': 'No data found in modbus_TEST'}), 400
 
-            api_logger.info("API called with data: %s", request_data)
+            # Parsing the nested JSON string
+            try:
+                sense_data = json.loads(modbus_test_data)
+            except json.JSONDecodeError:
+                api_logger.error("Invalid JSON format in modbus_TEST")
+                return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
 
-            # Extracting data from JSON
-            date = request_data.get('D', '')
-            full_addr = request_data.get('address', 0)
-            sensor_data = request_data.get('data', [])
-            imei = request_data.get('IMEI', '')
+            api_logger.info("API called with data: %s", sense_data)
+
+            # Extracting data from the nested JSON
+            date = sense_data.get('D', '')
+            full_addr = sense_data.get('address', 0)
+            sensor_data = sense_data.get('data', [])
+            imei = sense_data.get('IMEI', '')
 
             if not all([date, full_addr, sensor_data, imei]):
                 api_logger.error("Missing required data fields")
@@ -340,7 +349,7 @@ def receive_level_sensor_data():
             db.session.commit()
 
             # Log success
-            api_logger.info("Data stored successfully: %s", json.dumps(request_data))
+            api_logger.info("Data stored successfully: %s", sense_data)
 
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
@@ -353,6 +362,7 @@ def receive_level_sensor_data():
 
     api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
 
 
 
