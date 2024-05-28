@@ -284,17 +284,33 @@
     </table>
       <!--Pages-->
        <!-- Pagination -->
-       <div class="pagination-container">
-        <div class="pagination">
+<div class="pagination-container">
+  <div class="pagination">
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
             {% if pagination.has_prev %}
-            <a href="{{ url_for('search_sensor_data', query=request.args.get('query'), page=pagination.prev_num) }}"><button type="button">Previous</button></a>
+            <li class="page-item"><a class="page-link" href="{{ url_for('dashboard', page=pagination.prev_num, filter=filter_option, query=request.args.get('query')) }}">Previous</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
             {% endif %}
-            Page {{ pagination.page }} of {{ pagination.pages }}
+            {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+            <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('dashboard', page=page_num, filter=filter_option, query=request.args.get('query')) }}">{{ page_num }}</a>
+            </li>
+            {% endfor %}
             {% if pagination.has_next %}
-            <a href="{{ url_for('search_sensor_data', query=request.args.get('query'), page=pagination.next_num) }}"><button type="button">Next</button></a>
+            <li class="page-item"><a class="page-link" href="{{ url_for('dashboard', page=pagination.next_num, filter=filter_option, query=request.args.get('query')) }}">Next</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
             {% endif %}
-        </div>
+        </ul>
+    </nav>
+</div>
+
     </div>
+
+
+  
   </div>
           
                 
