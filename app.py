@@ -292,7 +292,6 @@ api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message
 api_logger.addHandler(api_handler)
 
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -303,13 +302,16 @@ def receive_level_sensor_data():
 
             request_data = request.get_json()
 
-            # Ensure modbus_TEST field is present and parse its value as JSON
+            # Log the raw modbus_TEST data for debugging
             modbus_test_data = request_data.get('modbus_TEST', '{}')
+            api_logger.debug(f"Raw modbus_TEST data: {modbus_test_data}")
+
+            # Ensure modbus_TEST field is present and parse its value as JSON
             try:
                 sense_data = json.loads(modbus_test_data)
-            except json.JSONDecodeError:
-                api_logger.error("Invalid JSON format in modbus_TEST")
-                return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
+            except json.JSONDecodeError as e:
+                api_logger.error(f"Invalid JSON format in modbus_TEST: {e}")
+                return jsonify({'status': 'failure', 'message': f'Invalid JSON format in modbus_TEST: {e}'}), 400
 
             api_logger.info("API called with data: %s", sense_data)
 
@@ -361,6 +363,7 @@ def receive_level_sensor_data():
 
     api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
 
 
 
