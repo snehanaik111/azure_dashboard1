@@ -291,7 +291,6 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -308,6 +307,8 @@ def receive_level_sensor_data():
 
             # Ensure modbus_TEST field is present and parse its value as JSON
             try:
+                # Attempt to fix common JSON formatting issues
+                modbus_test_data = modbus_test_data.replace("'", "\"")
                 sense_data = json.loads(modbus_test_data)
             except json.JSONDecodeError as e:
                 api_logger.error(f"Invalid JSON format in modbus_TEST: {e}")
@@ -342,7 +343,7 @@ def receive_level_sensor_data():
             # Create a new LevelSensorData object and add it to the database
             volume_liters = get_volume(sensor_data)
             if volume_liters is None:
-                api_logger.error("Volume calculation failed")
+                api_logger.error(f"Volume calculation failed for sensor_data: {sensor_data}")
                 return jsonify({'status': 'failure', 'message': 'Volume calculation failed'}), 500
 
             new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
@@ -358,7 +359,7 @@ def receive_level_sensor_data():
 
         except Exception as e:
             # Log failure
-            api_logger.error("Failed to store data: %s", e)
+            api_logger.error(f"Failed to store data: {e}")
             return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
     api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
@@ -414,36 +415,34 @@ def search_sensor_data():
 
 
 # Fetch the volume from the conversion table
+# Enhanced get_volume function
 def get_volume(sensor_data):
     conversion_entry = ConversionTable.query.filter_by(sensor_data=int(sensor_data)).first()
     if conversion_entry:
         return conversion_entry.volume_liters
     else:
         numeric_keys = [entry.sensor_data for entry in ConversionTable.query.all()]
-        if not numeric_keys:
-            return None  # Return None or a default value if numeric_keys is empty
+        lower_key = max((key for key in numeric_keys if key < sensor_data), default=None)
 
-        lower_keys = [key for key in numeric_keys if key < sensor_data]
-        if not lower_keys:
-            return None  # Return None or a default value if no lower keys
-
-        lower_key = max(lower_keys)
-
-        upper_keys = [key for key in numeric_keys if key > sensor_data]
-        if upper_keys:
-            upper_key = min(upper_keys)
-            lower_volume = ConversionTable.query.filter_by(sensor_data=lower_key).first().volume_liters
-            upper_volume = ConversionTable.query.filter_by(sensor_data=upper_key).first().volume_liters
-            interpolated_volume = interpolate(lower_key, lower_volume, upper_key, upper_volume, sensor_data)
-            return interpolated_volume
+        if lower_key is not None:
+            upper_keys = [key for key in numeric_keys if key > sensor_data]
+            if upper_keys:
+                upper_key = min(upper_keys)
+                lower_volume = ConversionTable.query.filter_by(sensor_data=lower_key).first().volume_liters
+                upper_volume = ConversionTable.query.filter_by(sensor_data=upper_key).first().volume_liters
+                interpolated_volume = interpolate(lower_key, lower_volume, upper_key, upper_volume, sensor_data)
+                return interpolated_volume
+            else:
+                # No upper key found, return the volume of the lower key
+                return ConversionTable.query.filter_by(sensor_data=lower_key).first().volume_liters
         else:
-            return None  # Return None or a default value if no upper keys
+            # No lower key found, return None
+            return None
 
 
 def interpolate(x1, y1, x2, y2, x):
     interpolated_value = y1 + ((y2 - y1) / (x2 - x1)) * (x - x1)
     return round(interpolated_value, 3)
-
 
 #chart
 
