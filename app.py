@@ -1,16 +1,13 @@
-from flask import Flask, request,render_template, redirect,session,url_for, jsonify
+from flask import Flask, request, render_template, redirect, session, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import logging
 import json
 
-
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 app.secret_key = 'secret_key'
-
-
 
 # Define conversion table
 conversion_table = {
@@ -48,18 +45,16 @@ conversion_table = {
     57: 1.875,
     50: 1.625,
     51: 1.625,
-    42:1.375,
-    35:1.125,
-    28:0.875,
-    21:0.625,
-    19:0.696,
-    14:0.375,
-    6:0.125,
-    0:0,
+    42: 1.375,
+    35: 1.125,
+    28: 0.875,
+    21: 0.625,
+    19: 0.696,
+    14: 0.375,
+    6: 0.125,
+    0: 0,
     "Sensor Dead Band": 0,
 }
-
-
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -67,16 +62,13 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(100))
 
-    def __init__(self,email,password,name):
+    def __init__(self, email, password, name):
         self.name = name
         self.email = email
         self.password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
-    def check_password(self,password):
-        return bcrypt.checkpw(password.encode('utf-8'),self.password.encode('utf-8'))
-
-
-
+    def check_password(self, password):
+        return bcrypt.checkpw(password.encode('utf-8'), self.password.encode('utf-8'))
 
 class LevelSensorData(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -87,33 +79,26 @@ class LevelSensorData(db.Model):
     volume_liters = db.Column(db.Float)  # New column for converted volumes
 
     def __repr__(self):
-        return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}')>"
-
-
-
+        return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}', volume_liters={self.volume_liters})>"
 
 with app.app_context():
     db.create_all()
-
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/signup',methods=['GET','POST'])
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        # handle request
         name = request.form['name']
         email = request.form['email']
         password = request.form['password']
 
-        new_user = User(name=name,email=email,password=password)
+        new_user = User(name=name, email=email, password=password)
         db.session.add(new_user)
         db.session.commit()
         return redirect('/login')
-
-
 
     return render_template('signup.html')
 
@@ -124,7 +109,6 @@ def api_signup():
     email = data.get('email')
     password = data.get('password')
 
-    # Check if all required fields are present
     if not name or not email or not password:
         return jsonify({"message": "Please provide name, email, and password"}), 400
 
@@ -141,7 +125,7 @@ def api_signup():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    error = None  # Initialize error message variable
+    error = None
 
     if request.method == 'POST':
         email = request.form['email']
@@ -153,9 +137,9 @@ def login():
             session['email'] = user.email
             return redirect('/dashboard')
         else:
-            error = 'Please provide correct credentials to login.'  # Set error message
+            error = 'Please provide correct credentials to login.'
 
-    return render_template('login.html', error=error)  # Pass error message to template
+    return render_template('login.html', error=error)
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
@@ -168,7 +152,6 @@ def api_login():
         session['email'] = user.email
         return jsonify({"message": "Login successful"}), 200
     return jsonify({"message": "Invalid credentials"}), 401
-
 
 @app.route('/dashboard')
 def dashboard():
@@ -204,10 +187,9 @@ def dashboard():
         )
     return redirect('/login')
 
-
 @app.route('/logout')
 def logout():
-    session.pop('email',None)
+    session.pop('email', None)
     return redirect('/login')
 
 @app.route('/api/logout', methods=['POST'])
@@ -225,22 +207,13 @@ def delete_user(user_id):
     else:
         return jsonify({"message": "User not found"}), 404
 
-
-
-
-
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
-
-
-# Configure a separate logger for API calls
 api_logger = logging.getLogger('api_logger')
 api_handler = logging.FileHandler('apilog.txt')
 api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
-
-
 
 
 @app.route('/level_sensor_data', methods=['POST'])
@@ -250,10 +223,7 @@ def receive_level_sensor_data():
             if not request.is_json:
                 api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
-
             request_data = request.get_json()
-
-            # Ensure modbus_TEST field is present and parse its value as JSON
             modbus_test_data = request_data.get('modbus_TEST', '{}')
             try:
                 sense_data = json.loads(modbus_test_data)
@@ -287,13 +257,19 @@ def receive_level_sensor_data():
                 api_logger.error("Invalid sensor data format")
                 return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
-            # Create a new LevelSensorData object and add it to the database
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei)
+            # Fetch volume from conversion table
+            volume_liters = get_volume(sensor_data)
+            if volume_liters is None:
+                api_logger.error("Failed to convert sensor data to volume")
+                return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
+
+            # Create a new LevelSensorData object with volume_liters and add it to the database
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
             db.session.add(new_data)
             db.session.commit()
 
             # Log success
-            logging.info("Data stored successfully: %s", json.dumps(sense_data))
+            api_logger.info("Data stored successfully: %s", json.dumps(sense_data))
 
             # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
@@ -301,39 +277,31 @@ def receive_level_sensor_data():
 
         except Exception as e:
             # Log failure
-            logging.error("Failed to store data: %s", e)
+            api_logger.error("Failed to store data: %s", e)
             return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
-    logging.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
+    api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
 
 
-
-
-
-# API route to get the count of device entries logged
 @app.route('/api/device_entries_logged', methods=['GET'])
 def api_device_entries_logged():
     if 'email' in session:
-        # Count the number of entries in the LevelSensorData table
         count = LevelSensorData.query.count()
         return jsonify({"device_entries_logged": count}), 200
     return jsonify({"message": "Unauthorized"}), 401
 
-# API route to get the count of active devices
 @app.route('/api/no_of_devices_active', methods=['GET'])
 def api_no_of_devices_active():
     if 'email' in session:
-        # Count the number of distinct IMEI values in the LevelSensorData table
         active_devices = db.session.query(db.func.count(db.distinct(LevelSensorData.imei))).scalar()
         return jsonify({"no_of_devices_active": active_devices}), 200
     return jsonify({"message": "Unauthorized"}), 401
 
-
 @app.route('/search', methods=['GET'])
 def search_sensor_data():
     query = request.args.get('query')
-    page = request.args.get('page', 1, type=int)  # Get the page number from the request
+    page = request.args.get('page', 1, type=int)
 
     if query:
         sense_data_pagination = LevelSensorData.query.filter(
@@ -342,16 +310,14 @@ def search_sensor_data():
             (LevelSensorData.sensor_data.like(f'%{query}%')) |
             (LevelSensorData.imei.like(f'%{query}%'))
         ).paginate(page=page, per_page=10)
-        sense_data = sense_data_pagination.items  # Extract items from pagination object
+        sense_data = sense_data_pagination.items
     else:
         sense_data_pagination = LevelSensorData.query.paginate(page=page, per_page=10)
-        sense_data = sense_data_pagination.items  # Extract items from pagination object
-    
-    user = User.query.filter_by(email=session.get('email')).first()  # Use get to avoid KeyError
- 
+        sense_data = sense_data_pagination.items
 
-    return render_template('dashboard.html', user=user,sense_data=sense_data, pagination=sense_data_pagination)
+    user = User.query.filter_by(email=session.get('email')).first()
 
+    return render_template('dashboard.html', user=user, sense_data=sense_data, pagination=sense_data_pagination)
 
 # Fetch the volume from the conversion table
 def get_volume(sensor_data):
@@ -359,23 +325,16 @@ def get_volume(sensor_data):
         return conversion_table[sensor_data]
     else:
         numeric_keys = [key for key in conversion_table if isinstance(key, int)]
-        lower_key = max(key for key in numeric_keys if key < sensor_data)
+        lower_key = max(key for key in numeric_keys if key <= sensor_data)
         upper_keys = [key for key in numeric_keys if key > sensor_data]
         if upper_keys:
             upper_key = min(upper_keys)
             return interpolate(lower_key, conversion_table[lower_key], upper_key, conversion_table[upper_key], sensor_data)
         return None
 
-        
 def interpolate(x1, y1, x2, y2, x):
     return round(y1 + ((y2 - y1) / (x2 - x1)) * (x - x1), 3)
 
-
-#chart
-
-
-
-
-
 if __name__ == '__main__':
     app.run(debug=True)
+
