@@ -233,7 +233,7 @@ def receive_level_sensor_data():
 
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', [])
+            sensor_data = sense_data.get('data', 0)
             imei = sense_data.get('IMEI', '')
 
             if not all([date, full_addr, sensor_data, imei]):
