@@ -217,12 +217,14 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
+
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
             if not request.is_json:
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
+
             request_data = request.get_json()
             modbus_test_str = request_data.get('modbus_TEST', '{}')
 
@@ -231,31 +233,27 @@ def receive_level_sensor_data():
             except json.JSONDecodeError:
                 return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
 
-            date = sense_data.get('D', '')
+            date_str = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', 0)
+            sensor_data_str = sense_data.get('data', '')
             imei = sense_data.get('IMEI', '')
 
-            if not all([date, full_addr, sensor_data, imei]):
+            # Ensure required fields are present
+            if not all([date_str, full_addr, sensor_data_str, imei]):
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            if isinstance(sensor_data, list) and len(sensor_data) > 0:
-                # Take the first value from the array
-                sensor_data = sensor_data[0]
-            else:
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
+            # Convert sensor data string to list of floats
+            sensor_data = [float(x) for x in sensor_data_str.split(',')]
 
-            try:
-                sensor_data = float(sensor_data)
-            except ValueError:
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
+            # Insert each sensor data entry into the database
+            for data_point in sensor_data:
+                volume_liters = get_volume(data_point)
+                if volume_liters is None:
+                    return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
 
-            volume_liters = get_volume(sensor_data)
-            if volume_liters is None:
-                return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
+                new_data = LevelSensorData(date=date_str, full_addr=full_addr, sensor_data=data_point, imei=imei, volume_liters=volume_liters)
+                db.session.add(new_data)
 
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
-            db.session.add(new_data)
             db.session.commit()
 
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
