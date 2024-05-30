@@ -232,7 +232,7 @@ def receive_level_sensor_data():
                 sense_data = json.loads(modbus_test_data)
             except json.JSONDecodeError:
                 app.logger.error("Invalid JSON format in modbus_TEST: %s", modbus_test_data)
-                return jsonify({'status': 'failure', 'message': f'Invalid JSON format in modbus_TEST: {modbus_test_data}'}), 400
+                return jsonify({'status': 'failure', 'message': f'Invalid JSON format in modbus_TEST: {request_data}'}), 400
 
            
 
