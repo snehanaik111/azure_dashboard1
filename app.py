@@ -225,7 +225,7 @@ def receive_level_sensor_data():
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
             
             request_data = request.get_json()
-            modbus_test_data = request_data.get('modbus_TEST', '{}')
+            modbus_test_data = request_data.get('modbus_TEST')
             
           
             try:
