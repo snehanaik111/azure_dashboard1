@@ -11,8 +11,36 @@
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.slim.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <meta charset="UTF-8">
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script>
+    // Function to fetch and update device entries logged count
+    function updateDeviceEntriesCount() {
+        $.get("/api/device_entries_logged", function(data) {
+            $("#devices_logged").text(data.device_entries_logged);
+        });
+    }
+
+    // Function to fetch and update active devices count
+    function updateActiveDevicesCount() {
+        $.get("/api/no_of_devices_active", function(data) {
+            $("#active_devices").text(data.no_of_devices_active);
+        });
+    }
+
+    // Function to periodically update counts
+    function startAutoRefresh() {
+        setInterval(function() {
+            updateDeviceEntriesCount();
+            updateActiveDevicesCount();
+        }, 5000); // Refresh every 5 seconds
+    }
+
+    // Call the function to start auto-refresh when the page loads
+    $(document).ready(function() {
+        startAutoRefresh();
+    });
+</script>
+  <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fuel Management System Dashboard</title>
     
@@ -22,6 +50,28 @@
     <!-- Font Awesome Cdn Link -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" />
     <span style="font-family: verdana, geneva, sans-serif;">
+        <style>
+              
+              #no-data-message {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    font-size: 18px;
+    color: red;
+    background-color: #fff; /* White background */
+    padding: 10px; /* Add some padding */
+    border-radius: 5px; /* Rounded corners */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Shadow effect */
+}
+
+        #google-chart-container {
+            position: relative;
+        }
+    
+        </style>
 </head>
 <body> 
     
@@ -199,35 +249,141 @@
                 <h1 class="recent-Articles">Recent Activity</h1> 
             
             </div> 
-<br>
- <div>
-        <h2>Fuel Consumption Line Chart</h2>
-        <canvas id="fuelChart" width="400" height="200"></canvas>
-      </div>
+<br><div id="google-chart-container">
+    <h2>Fuel Consumption Line Chart</h2>
+    <br>
+    <input type="date" id="startDatePicker" title="Select Start Date">
+    <input type="date" id="endDatePicker" title="Select End Date">
+    <button id="filterByDateRangeBtn">Filter by Date Range</button>
+    <button id="goToLatestBtn">Go to Latest</button> <!-- New button -->
+    <div id="google-chart" style="width: 100%; height: 400px;"></div>
+    <div id="no-data-message" style="display: none;">No data available</div>
+</div>
 
 <script>
-    // JavaScript to create the line chart
-    var ctx = document.getElementById('fuelChart').getContext('2d');
-    var fuelChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
-        datasets: [{
-          label: 'Fuel Consumption',
-          data: [65, 59, 80, 81, 56, 55, 40],
-          borderColor: 'rgba(255, 99, 132, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        scales: {
-          y: {
-            beginAtZero: true
-          }
+google.charts.load('current', {'packages':['corechart']});
+google.charts.setOnLoadCallback(initialize);
+
+var lastDrawnTime = new Date().getTime(); // Variable to store the last time the chart was drawn
+
+function fetchChartData(callback) {
+    $.ajax({
+        url: "/api/sensor_data",
+        dataType: "json",
+        success: function(data) {
+            callback(data);
         }
-      }
     });
-  </script> 
+}
+
+function drawChart(dataToDraw) {
+    var chartContainer = $('#google-chart');
+    var noDataMessage = $('#no-data-message');
+
+    // Always show the chart container
+    chartContainer.show();
+
+    if (dataToDraw.labels.length === 0) {
+        noDataMessage.show();
+
+        // Hide the lines by setting lineWidth to 0
+        var options = {
+            curveType: 'function',
+            legend: { position: 'bottom' },
+            lineWidth: 0
+        };
+
+        var emptyData = new google.visualization.DataTable();
+        emptyData.addColumn('string', 'Date');
+        emptyData.addColumn('number', 'Sensor Data');
+        emptyData.addColumn('number', 'Volume Liters');
+
+        var chart = new google.visualization.LineChart(document.getElementById('google-chart'));
+        chart.draw(emptyData, options);
+
+        return;
+    }
+
+    noDataMessage.hide();
+
+    var data = new google.visualization.DataTable();
+    data.addColumn('string', 'Time'); // Change x-axis label to "Time"
+    data.addColumn('number', 'Sensor Data');
+    data.addColumn('number', 'Liters'); // Change y-axis label to "Liters"
+
+    for (var i = 0; i < dataToDraw.labels.length; i++) {
+        data.addRow([dataToDraw.labels[i], dataToDraw.sensorData[i], dataToDraw.volumeLiters[i]]);
+    }
+
+    var options = {
+        curveType: 'function',
+        legend: { position: 'bottom' },
+        lineWidth: 2, // Set the line width normally
+        hAxis: { title: 'Time' }, // Set x-axis title to "Time"
+        vAxis: { title: 'Liters' } // Set y-axis title to "Liters"
+    };
+
+    var chart = new google.visualization.LineChart(document.getElementById('google-chart'));
+    chart.draw(data, options);
+}
+
+function filterDataByDateRange(startDate, endDate, data) {
+    var filteredData = {
+        labels: [],
+        sensorData: [],
+        volumeLiters: []
+    };
+    for (var i = 0; i < data.labels.length; i++) {
+        var currentDate = data.labels[i].split(" ")[0]; // Extracting date part
+        if (currentDate >= startDate && currentDate <= endDate) {
+            filteredData.labels.push(data.labels[i]);
+            filteredData.sensorData.push(data.sensorData[i]);
+            filteredData.volumeLiters.push(data.volumeLiters[i]);
+        }
+    }
+    return filteredData;
+}
+
+function initialize() {
+    fetchChartData(function(data) {
+        drawChart(data);
+
+        $('#filterByDateRangeBtn').on('click', function() {
+            var startDate = $('#startDatePicker').val();
+            var endDate = $('#endDatePicker').val();
+
+            if (startDate && endDate) {
+                var filteredData = filterDataByDateRange(startDate, endDate, data);
+                drawChart(filteredData);
+                
+                lastDrawnTime = new Date().getTime(); // Update the last drawn time
+            } else {
+                alert("Please select a valid date range.");
+            }
+        });
+        
+        $('#goToLatestBtn').on('click', function() { // Event listener for "Go to Latest" button
+            fetchChartData(function(data) {
+                drawChart(data);
+                
+                lastDrawnTime = new Date().getTime(); // Update the last drawn time
+            });
+        });
+
+        setInterval(function() {
+            var currentTime = new Date().getTime();
+            if (currentTime - lastDrawnTime >= 30000) { // Check if at least 30 seconds have passed
+                fetchChartData(function(data) {
+                    drawChart(data); // Updates with the latest data
+                });
+            }
+        }, 10000); // Refresh every 10 seconds
+    });
+}
+</script>
+
+
+
             
             <br>
 <h2>Sensor Data Receiver</h2>
