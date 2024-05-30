@@ -217,7 +217,6 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
-
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
@@ -242,11 +241,11 @@ def receive_level_sensor_data():
             if not all([date_str, full_addr, sensor_data_str, imei]):
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Convert sensor data string to list of floats
-            sensor_data = [float(x) for x in sensor_data_str.split(',')]
+            # Split sensor data string by comma and convert each value to float
+            sensor_data_values = [float(value.strip()) for value in sensor_data_str.split(',')]
 
             # Insert each sensor data entry into the database
-            for data_point in sensor_data:
+            for data_point in sensor_data_values:
                 volume_liters = get_volume(data_point)
                 if volume_liters is None:
                     return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
