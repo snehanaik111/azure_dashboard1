@@ -223,8 +223,10 @@ def receive_level_sensor_data():
             if not request.is_json:
                 api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
+            
             request_data = request.get_json()
             modbus_test_data = request_data.get('modbus_TEST', '{}')
+            
             try:
                 sense_data = json.loads(modbus_test_data)
             except json.JSONDecodeError:
@@ -243,29 +245,23 @@ def receive_level_sensor_data():
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Ensure sensor_data is a list and extract the first element
-            if isinstance(sensor_data, list) and sensor_data:
-                sensor_data = sensor_data[0]
-            else:
-                api_logger.error("Invalid sensor data format")
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
+            # Ensure sensor_data is a list
+            if not isinstance(sensor_data, list):
+                sensor_data = [sensor_data]
 
-            # Convert sensor_data to float
-            try:
-                sensor_data = float(sensor_data)
-            except ValueError:
-                api_logger.error("Invalid sensor data format")
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
+            # Convert sensor_data to floats
+            sensor_data = [float(value) for value in sensor_data]
 
             # Fetch volume from conversion table
-            volume_liters = get_volume(sensor_data)
-            if volume_liters is None:
+            volumes = [get_volume(value) for value in sensor_data]
+            if None in volumes:
                 api_logger.error("Failed to convert sensor data to volume")
                 return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
 
-            # Create a new LevelSensorData object with volume_liters and add it to the database
-            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
-            db.session.add(new_data)
+            # Create a new LevelSensorData object for each sensor data and add them to the database
+            for sensor_value, volume in zip(sensor_data, volumes):
+                new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_value, imei=imei, volume_liters=volume)
+                db.session.add(new_data)
             db.session.commit()
 
             # Log success
@@ -282,6 +278,7 @@ def receive_level_sensor_data():
 
     api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
 
 
 @app.route('/api/device_entries_logged', methods=['GET'])
