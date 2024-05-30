@@ -223,8 +223,10 @@ def receive_level_sensor_data():
             if not request.is_json:
                 api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
+            
             request_data = request.get_json()
             modbus_test_data = request_data.get('modbus_TEST', '{}')
+            
             try:
                 sense_data = json.loads(modbus_test_data)
             except json.JSONDecodeError:
@@ -236,24 +238,23 @@ def receive_level_sensor_data():
             # Extracting data from JSON
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', [])
+            sensor_data_str = sense_data.get('data', '')
             imei = sense_data.get('IMEI', '')
 
-            if not all([date, full_addr, sensor_data, imei]):
+            if not all([date, full_addr, sensor_data_str, imei]):
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Ensure sensor_data is a list and extract the first element
-            if isinstance(sensor_data, list) and sensor_data:
-                sensor_data = sensor_data[0]
+            # Convert sensor_data string to a list and extract the first element
+            sensor_data_list = sensor_data_str.split(',')
+            sensor_data_list = [s.strip() for s in sensor_data_list if s.strip()]  # Remove any empty strings
+            if sensor_data_list:
+                try:
+                    sensor_data = float(sensor_data_list[0])
+                except ValueError:
+                    api_logger.error("Invalid sensor data format")
+                    return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
             else:
-                api_logger.error("Invalid sensor data format")
-                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
-
-            # Convert sensor_data to float
-            try:
-                sensor_data = float(sensor_data)
-            except ValueError:
                 api_logger.error("Invalid sensor data format")
                 return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
@@ -282,6 +283,7 @@ def receive_level_sensor_data():
 
     api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
+
 
 
 @app.route('/api/device_entries_logged', methods=['GET'])
