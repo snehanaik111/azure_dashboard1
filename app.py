@@ -227,11 +227,14 @@ def receive_level_sensor_data():
             request_data = request.get_json()
             modbus_test_data = request_data.get('modbus_TEST', '{}')
             
+          
             try:
                 sense_data = json.loads(modbus_test_data)
             except json.JSONDecodeError:
-                api_logger.error("Invalid JSON format in modbus_TEST")
-                return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
+                app.logger.error("Invalid JSON format in modbus_TEST: %s", modbus_test_data)
+                return jsonify({'status': 'failure', 'message': f'Invalid JSON format in modbus_TEST: {modbus_test_data}'}), 400
+
+           
 
             api_logger.info("API called with data: %s", sense_data)
 
