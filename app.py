@@ -3,8 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import logging
 import json
-import sqlite3
-from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
@@ -217,50 +215,72 @@ api_handler.setLevel(logging.INFO)
 api_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 api_logger.addHandler(api_handler)
 
+
 @app.route('/level_sensor_data', methods=['POST'])
 def receive_level_sensor_data():
     if request.method == 'POST':
         try:
             if not request.is_json:
+                api_logger.error("Request content type is not JSON")
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
-
             request_data = request.get_json()
-            modbus_test_str = request_data.get('modbus_TEST', '{}')
-
+            modbus_test_data = request_data.get('modbus_TEST', '{}')
             try:
-                sense_data = json.loads(modbus_test_str)
+                sense_data = json.loads(modbus_test_data)
             except json.JSONDecodeError:
+                api_logger.error("Invalid JSON format in modbus_TEST")
                 return jsonify({'status': 'failure', 'message': 'Invalid JSON format in modbus_TEST'}), 400
 
-            date_str = sense_data.get('D', '')
+            api_logger.info("API called with data: %s", sense_data)
+
+            # Extracting data from JSON
+            date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
-            sensor_data_str = sense_data.get('data', '')
+            sensor_data = sense_data.get('data', [])
             imei = sense_data.get('IMEI', '')
 
-            # Ensure required fields are present
-            if not all([date_str, full_addr, sensor_data_str, imei]):
+            if not all([date, full_addr, sensor_data, imei]):
+                api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
-            # Split sensor data string by comma and convert each value to float
-            sensor_data_values = [float(value.strip()) for value in sensor_data_str.split(',')]
+            # Ensure sensor_data is a list and extract the first element
+            if isinstance(sensor_data, list) and sensor_data:
+                sensor_data = sensor_data[0]
+            else:
+                api_logger.error("Invalid sensor data format")
+                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
-            # Insert each sensor data entry into the database
-            for data_point in sensor_data_values:
-                volume_liters = get_volume(data_point)
-                if volume_liters is None:
-                    return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
+            # Convert sensor_data to float
+            try:
+                sensor_data = float(sensor_data)
+            except ValueError:
+                api_logger.error("Invalid sensor data format")
+                return jsonify({'status': 'failure', 'message': 'Invalid sensor data format'}), 400
 
-                new_data = LevelSensorData(date=date_str, full_addr=full_addr, sensor_data=data_point, imei=imei, volume_liters=volume_liters)
-                db.session.add(new_data)
+            # Fetch volume from conversion table
+            volume_liters = get_volume(sensor_data)
+            if volume_liters is None:
+                api_logger.error("Failed to convert sensor data to volume")
+                return jsonify({'status': 'failure', 'message': 'Failed to convert sensor data to volume'}), 400
 
+            # Create a new LevelSensorData object with volume_liters and add it to the database
+            new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_data, imei=imei, volume_liters=volume_liters)
+            db.session.add(new_data)
             db.session.commit()
 
+            # Log success
+            api_logger.info("Data stored successfully: %s", json.dumps(sense_data))
+
+            # Return a response
             response = {'status': 'success', 'message': 'Data received and stored successfully'}
             return jsonify(response), 200
 
         except Exception as e:
+            # Log failure
+            api_logger.error("Failed to store data: %s", e)
             return jsonify({'status': 'failure', 'message': 'Failed to store data'}), 500
 
+    api_logger.info("Received non-POST request at /level_sensor_data, redirecting to /dashboard")
     return redirect('/dashboard')
 
 
@@ -314,25 +334,6 @@ def get_volume(sensor_data):
 
 def interpolate(x1, y1, x2, y2, x):
     return round(y1 + ((y2 - y1) / (x2 - x1)) * (x - x1), 3)
-
-
-
-
-@app.route('/api/sensor_data')
-def get_sensor_data():
-    try:
-        sensor_data = LevelSensorData.query.all()
-        if not sensor_data:
-            return jsonify(error='No data available'), 404
-
-        labels = [str(data.date) for data in sensor_data]
-        sensor_values = [data.sensor_data for data in sensor_data]
-        volume_liters = [data.volume_liters for data in sensor_data]
-        
-        return jsonify(labels=labels, sensorData=sensor_values, volumeLiters=volume_liters)
-    except Exception as e:
-        print(f"Error fetching sensor data: {str(e)}")
-        return jsonify(error='Internal server error'), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
