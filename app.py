@@ -225,7 +225,7 @@ def receive_level_sensor_data():
                 return jsonify({'status': 'failure', 'message': 'Request content type is not JSON'}), 400
             
             request_data = request.get_json()
-            modbus_test_data = request_data.get('analog1', '{}')
+            modbus_test_data = request_data.get('level_sensor_data', '{}')
             
             try:
                 sense_data = json.loads(modbus_test_data)
@@ -238,7 +238,7 @@ def receive_level_sensor_data():
             # Extracting data from JSON
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
-            sensor_data = sense_data.get('data', 0)
+            sensor_data = sense_data.get('data', [])
             imei = sense_data.get('IMEI', '')
 
             if not all([date, full_addr, sensor_data, imei]):
