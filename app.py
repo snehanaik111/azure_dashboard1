@@ -75,11 +75,11 @@ class LevelSensorData(db.Model):
     date = db.Column(db.String(50))
     full_addr = db.Column(db.Integer)
     sensor_data = db.Column(db.Float)
-    imei = db.Column(db.String(50))
+    vehicleno = db.Column(db.String(50))
     volume_liters = db.Column(db.Float)  # New column for converted volumes
 
     def __repr__(self):
-        return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data}, imei='{self.imei}', volume_liters={self.volume_liters})>"
+        return f"<LevelSensorData(date='{self.date}', full_addr='{self.full_addr}', sensor_data={self.sensor_data},  vehicleno='{self. vehicleno}', volume_liters={self.volume_liters})>"
 
 with app.app_context():
     db.create_all()
@@ -166,7 +166,7 @@ def dashboard():
                 (LevelSensorData.date.like(f'%{search_query}%')) |
                 (LevelSensorData.full_addr.like(f'%{search_query}%')) |
                 (LevelSensorData.sensor_data.like(f'%{search_query}%')) |
-                (LevelSensorData.imei.like(f'%{search_query}%'))
+                (LevelSensorData. vehicleno.like(f'%{search_query}%'))
             ).order_by(LevelSensorData.date.desc()).paginate(page=page, per_page=10)
         else:
             if filter_option == 'oldest':
@@ -239,9 +239,9 @@ def receive_level_sensor_data():
             date = sense_data.get('D', '')
             full_addr = sense_data.get('address', 0)
             sensor_data = sense_data.get('data', [])
-            imei = sense_data.get('IMEI', '')
+            vehicleno = sense_data.get('Vehicle no', '')
 
-            if not all([date, full_addr, sensor_data, imei]):
+            if not all([date, full_addr, sensor_data,  vehicleno]):
                 api_logger.error("Missing required data fields")
                 return jsonify({'status': 'failure', 'message': 'Missing required data fields'}), 400
 
@@ -260,7 +260,7 @@ def receive_level_sensor_data():
 
             # Create a new LevelSensorData object for each sensor data and add them to the database
             for sensor_value, volume in zip(sensor_data, volumes):
-                new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_value, imei=imei, volume_liters=volume)
+                new_data = LevelSensorData(date=date, full_addr=full_addr, sensor_data=sensor_value,  vehicleno= vehicleno, volume_liters=volume)
                 db.session.add(new_data)
             db.session.commit()
 
@@ -291,7 +291,7 @@ def api_device_entries_logged():
 @app.route('/api/no_of_devices_active', methods=['GET'])
 def api_no_of_devices_active():
     if 'email' in session:
-        active_devices = db.session.query(db.func.count(db.distinct(LevelSensorData.imei))).scalar()
+        active_devices = db.session.query(db.func.count(db.distinct(LevelSensorData. vehicleno))).scalar()
         return jsonify({"no_of_devices_active": active_devices}), 200
     return jsonify({"message": "Unauthorized"}), 401
 
@@ -305,7 +305,7 @@ def search_sensor_data():
             (LevelSensorData.date.like(f'%{query}%')) |
             (LevelSensorData.full_addr.like(f'%{query}%')) |
             (LevelSensorData.sensor_data.like(f'%{query}%')) |
-            (LevelSensorData.imei.like(f'%{query}%'))
+            (LevelSensorData. vehicleno.like(f'%{query}%'))
         ).paginate(page=page, per_page=10)
         sense_data = sense_data_pagination.items
     else:
